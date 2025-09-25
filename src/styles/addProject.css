@@ -1,0 +1,5 @@
+.buttons-container {
+    display: flex; /* Use flexbox for layout */
+    justify-content: flex-end; /* Align items to the right */
+    margin-top: 10px; /* Space between fields and buttons */
+  }
