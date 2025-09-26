@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-const API_BASE = "https://backend-mvp-nine.vercel.app/api"; // ganti ke "/api" jika pakai proxy
+const API_BASE = "https://backend-mvp-nine.vercel.app/api"; // ganti ke "/api" jika pakai proxy lokal
 
 // ---------- Helpers ----------
 const money = (v) =>
@@ -96,8 +96,15 @@ export default function VoucherList() {
   const [vendorsErr, setVendorsErr] = useState("");
   const [vendorSearch, setVendorSearch] = useState("");
 
+  // CATEGORY dropdown state
+  const [categories, setCategories] = useState([]);
+  const [catLoading, setCatLoading] = useState(false);
+  const [catErr, setCatErr] = useState("");
+  const [catSearch, setCatSearch] = useState("");
+
   // auth header
-  const token = localStorage.getItem("token");
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
   // ---------- LIST ----------
@@ -164,17 +171,53 @@ export default function VoucherList() {
     }
   }
 
-  // buka modal Add => load vendor
+  // ---------- CATEGORIES (dropdown) ----------
+  async function loadCategories(q = "") {
+    setCatLoading(true);
+    setCatErr("");
+    try {
+      const { data } = await axios.get(`${API_BASE}/category/list-category`, {
+        params: {
+          limit: 50,
+          offset: 0,
+          q,
+          status: 1,
+          sortBy: "category_name",
+          sortDir: "asc",
+        },
+        headers: { ...authHeader, "Content-Type": "application/json" },
+      });
+      setCategories(Array.isArray(data?.categories) ? data.categories : []);
+    } catch (e) {
+      console.error(e);
+      setCatErr(e?.response?.data?.error || "Gagal memuat kategori");
+      setCategories([]);
+    } finally {
+      setCatLoading(false);
+    }
+  }
+
+  // buka modal Add => load vendors & categories
   useEffect(() => {
-    if (addOpen) loadVendors("");
+    if (addOpen) {
+      loadVendors("");
+      loadCategories("");
+    }
   }, [addOpen]);
 
-  // debounce pencarian vendor saat add modal aktif
+  // (opsional) debounce cari vendor
   useEffect(() => {
     if (!addOpen) return;
     const t = setTimeout(() => loadVendors(vendorSearch.trim()), 300);
     return () => clearTimeout(t);
   }, [vendorSearch, addOpen]);
+
+  // (opsional) debounce cari kategori
+  useEffect(() => {
+    if (!addOpen) return;
+    const t = setTimeout(() => loadCategories(catSearch.trim()), 300);
+    return () => clearTimeout(t);
+  }, [catSearch, addOpen]);
 
   // ---------- ADD ----------
   const validateForm = () => {
@@ -227,6 +270,7 @@ export default function VoucherList() {
       categoryId: "",
     });
     setVendorSearch("");
+    setCatSearch("");
   };
 
   const onAdd = async () => {
@@ -558,11 +602,10 @@ export default function VoucherList() {
             </div>
 
             <div className="columns">
-              {/* VENDOR (dropdown + search) */}
+              {/* VENDOR (dropdown) */}
               <div className="column">
                 <div className="field">
                   <label className="label">Vendor</label>
-                  
                   <div className="control">
                     <div className={`select is-fullwidth ${vendorsLoading ? "is-loading" : ""}`}>
                       <select
@@ -586,20 +629,37 @@ export default function VoucherList() {
                 </div>
               </div>
 
+              {/* CATEGORY (dropdown) */}
               <div className="column">
                 <div className="field">
-                  <label className="label">Category ID</label>
-                  <div className="control">
+                  <label className="label">Category</label>
+                  {/* (Opsional) search kategori */}
+                  {/* <div className="control mb-1">
                     <input
                       className="input"
-                      type="number"
-                      min="1"
-                      value={form.categoryId}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, categoryId: e.target.value }))
-                      }
+                      placeholder="Cari kategori…"
+                      value={catSearch}
+                      onChange={(e) => setCatSearch(e.target.value)}
                     />
+                  </div> */}
+                  <div className="control">
+                    <div className={`select is-fullwidth ${catLoading ? "is-loading" : ""}`}>
+                      <select
+                        value={form.categoryId}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, categoryId: e.target.value }))
+                        }
+                      >
+                        <option value="">-- Pilih Kategori --</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.category_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
+                  {catErr && <p className="help is-danger mt-1">{catErr}</p>}
                 </div>
               </div>
 
