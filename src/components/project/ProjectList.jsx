@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-const API_BASE = "http://localhost:3000/api"; // ganti ke "/api" jika pakai proxy
+const API_BASE = "https://backend-mvp-nine.vercel.app/api"; // ganti ke "/api" jika pakai proxy
 
 // ---------- Helpers ----------
 const money = (v) =>
