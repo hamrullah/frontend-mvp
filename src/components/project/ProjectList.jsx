@@ -1,26 +1,27 @@
 // src/pages/VoucherList.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import axios from "axios";
+import {
+  IoSearch,
+  IoAdd,
+  IoEyeOutline,
+  IoPencilOutline,
+  IoTrashOutline,
+  IoRefreshOutline,
+  IoCloudDownloadOutline,
+} from "react-icons/io5";
 
-const API_BASE = "https://backend-mvp-nine.vercel.app/api"; // ganti ke "/api" jika pakai proxy lokal
+const API_BASE = "https://backend-mvp-nine.vercel.app/api"; // pakai "/api" jika via proxy
 
 // ---------- Helpers ----------
 const money = (v) =>
-  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(
-    Number(v || 0)
-  );
+  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(Number(v || 0));
 
 const fmtDate = (iso) => {
   if (!iso) return "-";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("id-ID", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("id-ID", { year: "numeric", month: "short", day: "numeric" });
 };
 
 const toIso = (localStr) => new Date(localStr).toISOString();
@@ -30,32 +31,38 @@ const toLocalInput = (iso) => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(
+    d.getMinutes()
+  )}`;
 };
 
-const statusLabel = (s) =>
-  ({ 1: "ACTIVE", 0: "INACTIVE", 2: "DRAFT" }[Number(s)] || String(s));
+const STATUS_LABEL = (s) => ({ 1: "Active", 0: "Inactive", 2: "Draft" }[Number(s)] || "Draft");
+const statusChipClass = (s) =>
+  ({
+    Active: "chip chip--active",
+    Inactive: "chip chip--inactive",
+    Draft: "chip chip--draft",
+  }[STATUS_LABEL(s)] || "chip");
 
-const imgUrl = (img) =>
-  img?.url || (img?.file ? `http://localhost:3000${img.file}` : "");
+// gambar di detail
+const imgUrl = (img) => img?.url || (img?.file ? `http://localhost:3000${img.file}` : "");
 
 // =====================================================
 
 export default function VoucherList() {
-  // LIST state
+  // ======= list =======
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [err, setErr] = useState("");
 
-  // pagination & filter
-  const [limit, setLimit] = useState(5);
+  // pagination & filter di toolbar
+  const [limit, setLimit] = useState(10);
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
-  const [query, setQuery] = useState("");
+  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL"); // ALL | 1 | 0 | 2
 
-  // ADD state
+  // ======= add =======
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState("");
@@ -69,10 +76,10 @@ export default function VoucherList() {
     vendorId: "",
     categoryId: "",
   });
-  const [images, setImages] = useState([]);     // File[]
-  const [previews, setPreviews] = useState([]); // object URLs
+  const [images, setImages] = useState([]);
+  const [previews, setPreviews] = useState([]);
 
-  // EDIT state
+  // ======= edit =======
   const [editOpen, setEditOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
@@ -81,36 +88,32 @@ export default function VoucherList() {
     title: "",
     price: "",
     endAtLocal: "",
-    status: "DRAFT", // ACTIVE | DRAFT | INACTIVE
+    status: "Draft",
   });
 
-  // DETAIL state
+  // ======= detail =======
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [detail, setDetail] = useState(null);
 
-  // VENDOR dropdown state
+  // ======= dropdown vendor & kategori =======
   const [vendors, setVendors] = useState([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [vendorsErr, setVendorsErr] = useState("");
-  const [vendorSearch, setVendorSearch] = useState("");
 
-  // CATEGORY dropdown state
   const [categories, setCategories] = useState([]);
   const [catLoading, setCatLoading] = useState(false);
   const [catErr, setCatErr] = useState("");
-  const [catSearch, setCatSearch] = useState("");
 
   // auth header
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
-  // ---------- LIST ----------
+  // ------- fetch list -------
   const fetchVouchers = async () => {
     setLoading(true);
-    setError("");
+    setErr("");
     try {
       const { data } = await axios.get(`${API_BASE}/voucher/list-voucher`, {
         params: { limit, offset },
@@ -121,7 +124,7 @@ export default function VoucherList() {
       setTotal(Number(data?.pagination?.total ?? rows.length));
     } catch (e) {
       console.error(e);
-      setError(e?.response?.data?.error || "Gagal mengambil data voucher");
+      setErr(e?.response?.data?.error || "Gagal mengambil data voucher");
     } finally {
       setLoading(false);
     }
@@ -132,129 +135,104 @@ export default function VoucherList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [limit, offset]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter((v) =>
-      `${v.title} ${statusLabel(v.status)}`.toLowerCase().includes(q)
-    );
-  }, [list, query]);
-
-  const page = Math.floor(offset / limit) + 1;
-  const pages = Math.max(1, Math.ceil((total || 0) / (limit || 1)));
-  const next = () => setOffset((o) => Math.min(o + limit, (pages - 1) * limit));
-  const prev = () => setOffset((o) => Math.max(0, o - limit));
-
-  // ---------- VENDORS (dropdown) ----------
-  async function loadVendors(q = "") {
+  // ------- vendors & categories -------
+  async function loadVendors() {
     setVendorsLoading(true);
     setVendorsErr("");
     try {
       const { data } = await axios.get(`${API_BASE}/vendor/list-vendor`, {
-        params: {
-          limit: 50,
-          offset: 0,
-          q,
-          status: 1,
-          sortBy: "name",
-          sortDir: "asc",
-        },
+        params: { limit: 100, offset: 0, status: 1, sortBy: "name", sortDir: "asc" },
         headers: { ...authHeader, "Content-Type": "application/json" },
       });
       setVendors(Array.isArray(data?.vendors) ? data.vendors : []);
     } catch (e) {
-      console.error(e);
       setVendorsErr(e?.response?.data?.error || "Gagal memuat vendor");
       setVendors([]);
     } finally {
       setVendorsLoading(false);
     }
   }
-
-  // ---------- CATEGORIES (dropdown) ----------
-  async function loadCategories(q = "") {
+  async function loadCategories() {
     setCatLoading(true);
     setCatErr("");
     try {
       const { data } = await axios.get(`${API_BASE}/category/list-category`, {
-        params: {
-          limit: 50,
-          offset: 0,
-          q,
-          status: 1,
-          sortBy: "category_name",
-          sortDir: "asc",
-        },
+        params: { limit: 100, offset: 0, status: 1, sortBy: "category_name", sortDir: "asc" },
         headers: { ...authHeader, "Content-Type": "application/json" },
       });
       setCategories(Array.isArray(data?.categories) ? data.categories : []);
     } catch (e) {
-      console.error(e);
       setCatErr(e?.response?.data?.error || "Gagal memuat kategori");
       setCategories([]);
     } finally {
       setCatLoading(false);
     }
   }
-
-  // buka modal Add => load vendors & categories
   useEffect(() => {
     if (addOpen) {
-      loadVendors("");
-      loadCategories("");
+      loadVendors();
+      loadCategories();
     }
   }, [addOpen]);
 
-  // (opsional) debounce cari vendor
-  useEffect(() => {
-    if (!addOpen) return;
-    const t = setTimeout(() => loadVendors(vendorSearch.trim()), 300);
-    return () => clearTimeout(t);
-  }, [vendorSearch, addOpen]);
+  // ------- derived view-model -------
+  const categoryById = useMemo(() => {
+    const m = new Map();
+    categories.forEach((c) => m.set(c.id, c.category_name));
+    return m;
+  }, [categories]);
 
-  // (opsional) debounce cari kategori
-  useEffect(() => {
-    if (!addOpen) return;
-    const t = setTimeout(() => loadCategories(catSearch.trim()), 300);
-    return () => clearTimeout(t);
-  }, [catSearch, addOpen]);
+  const applied = useMemo(() => {
+    let r = list;
+    if (statusFilter !== "ALL") r = r.filter((v) => String(v.status) === String(statusFilter));
+    const needle = q.trim().toLowerCase();
+    if (needle) {
+      r = r.filter((v) =>
+        `${v.code || v.code_voucher || ""} ${v.title || ""} ${STATUS_LABEL(v.status)}`.toLowerCase().includes(needle)
+      );
+    }
+    return r;
+  }, [list, q, statusFilter]);
 
-  // ---------- ADD ----------
+  const page = Math.floor(offset / limit) + 1;
+  const pages = Math.max(1, Math.ceil((total || 0) / (limit || 1)));
+  const next = () => setOffset((o) => Math.min(o + limit, (pages - 1) * limit));
+  const prev = () => setOffset((o) => Math.max(0, o - limit));
+
+  // ------- stat cards (like design) -------
+  const totalAll = total || list.length;
+  const totalActive = (list || []).filter((v) => Number(v.status) === 1).length;
+  const totalInactive = (list || []).filter((v) => Number(v.status) !== 1).length;
+
+  // ------- handlers: add -------
   const validateForm = () => {
     if (!form.title.trim()) return "Judul wajib diisi";
     if (!form.vendorId) return "Vendor wajib diisi";
     if (!form.categoryId) return "Kategori wajib diisi";
     const priceNum = Number(form.price);
     if (!Number.isFinite(priceNum) || priceNum <= 0) return "Harga tidak valid";
-    if (!form.startAtLocal || !form.endAtLocal)
-      return "Tanggal mulai & akhir wajib diisi";
+    if (!form.startAtLocal || !form.endAtLocal) return "Tanggal mulai & akhir wajib diisi";
     const start = new Date(form.startAtLocal);
     const end = new Date(form.endAtLocal);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
-      return "Format tanggal tidak valid";
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "Format tanggal tidak valid";
     if (end <= start) return "Tanggal akhir harus lebih besar dari tanggal mulai";
     const inv = Number(form.totalInventory);
-    if (!Number.isInteger(inv) || inv < 0)
-      return "Total inventory harus bilangan bulat ≥ 0";
+    if (!Number.isInteger(inv) || inv < 0) return "Total inventory harus bilangan bulat ≥ 0";
     return "";
   };
 
   const onPickFiles = (e) => {
     const files = Array.from(e.target.files || []);
-    const maxSize = 5 * 1024 * 1024;
-    const valid = files.filter(
-      (f) => f.type.startsWith("image/") && f.size <= maxSize
-    );
-    setImages(valid);
-    setPreviews(valid.map((f) => URL.createObjectURL(f)));
+    const max = 5 * 1024 * 1024;
+    const valids = files.filter((f) => f.type.startsWith("image/") && f.size <= max);
+    setImages(valids);
+    setPreviews(valids.map((f) => URL.createObjectURL(f)));
   };
-
   const removeImageAt = (idx) => {
     URL.revokeObjectURL(previews[idx]);
-    setImages((arr) => arr.filter((_, i) => i !== idx));
-    setPreviews((arr) => arr.filter((_, i) => i !== idx));
+    setImages((a) => a.filter((_, i) => i !== idx));
+    setPreviews((a) => a.filter((_, i) => i !== idx));
   };
-
   const resetAddForm = () => {
     previews.forEach((u) => URL.revokeObjectURL(u));
     setImages([]);
@@ -269,8 +247,6 @@ export default function VoucherList() {
       vendorId: "",
       categoryId: "",
     });
-    setVendorSearch("");
-    setCatSearch("");
   };
 
   const onAdd = async () => {
@@ -293,9 +269,7 @@ export default function VoucherList() {
       fd.append("endAt", toIso(form.endAtLocal));
       images.forEach((file) => fd.append("images", file));
 
-      await axios.post(`${API_BASE}/voucher/add-voucher`, fd, {
-        headers: { ...authHeader }, // biar browser set boundary otomatis
-      });
+      await axios.post(`${API_BASE}/voucher/add-voucher`, fd, { headers: { ...authHeader } });
 
       setAddOpen(false);
       resetAddForm();
@@ -309,7 +283,7 @@ export default function VoucherList() {
     }
   };
 
-  // ---------- EDIT ----------
+  // ------- edit -------
   const openEdit = (v) => {
     setEditError("");
     setEditForm({
@@ -317,24 +291,19 @@ export default function VoucherList() {
       title: v.title || "",
       price: String(v.price ?? ""),
       endAtLocal: toLocalInput(v.end),
-      status: statusLabel(v.status),
+      status: STATUS_LABEL(v.status),
     });
     setEditOpen(true);
   };
-
   const validateEdit = () => {
     if (!editForm.id) return "Data voucher tidak valid";
     if (!editForm.title.trim()) return "Judul wajib diisi";
     const priceNum = Number(editForm.price);
     if (!Number.isFinite(priceNum) || priceNum <= 0) return "Harga tidak valid";
     if (!editForm.endAtLocal) return "Tanggal akhir wajib diisi";
-    const end = new Date(editForm.endAtLocal);
-    if (Number.isNaN(end.getTime())) return "Format tanggal tidak valid";
-    if (!["ACTIVE", "DRAFT", "INACTIVE"].includes(editForm.status))
-      return "Status tidak valid";
+    if (!["Active", "Draft", "Inactive"].includes(editForm.status)) return "Status tidak valid";
     return "";
   };
-
   const onUpdate = async () => {
     const msg = validateEdit();
     if (msg) {
@@ -348,7 +317,7 @@ export default function VoucherList() {
         title: editForm.title.trim(),
         price: Number(editForm.price).toFixed(2),
         endAt: toIso(editForm.endAtLocal),
-        status: editForm.status,
+        status: editForm.status.toUpperCase(),
       };
       await axios.put(`${API_BASE}/voucher/${editForm.id}`, payload, {
         headers: { ...authHeader, "Content-Type": "application/json" },
@@ -363,225 +332,238 @@ export default function VoucherList() {
     }
   };
 
-  // ---------- DETAIL ----------
+  // ------- detail -------
   const fetchVoucherDetail = async (id) => {
     setDetailLoading(true);
     setDetailError("");
     setDetail(null);
     try {
-      const { data } = await axios.get(`${API_BASE}/voucher/${id}`, {
-        headers: { ...authHeader },
-      });
+      const { data } = await axios.get(`${API_BASE}/voucher/${id}`, { headers: { ...authHeader } });
       setDetail(data?.voucher || null);
       setDetailOpen(true);
     } catch (e) {
-      console.error(e);
       setDetailError(e?.response?.data?.error || "Gagal memuat detail voucher");
       setDetailOpen(true);
     } finally {
       setDetailLoading(false);
     }
   };
-
   const openDetail = (v) => fetchVoucherDetail(v.id);
 
   // =====================================================
 
   return (
-    <section className="section">
-      <div className="container">
-        {/* Header + Toolbar */}
-        <nav className="level">
-          <div className="level-left">
-            <div>
-              <h1 className="title">Vouchers</h1>
-              <p className="subtitle is-6">List voucher dari API</p>
-            </div>
+    <section className="section voucher-page">
+      <style>{styles}</style>
+      <br/>
+
+      <div className="vp-shell card">
+        <div className="vp-head">
+          <h1>Voucher Manager</h1>
+          <div className="vp-actions">
+            <button className="btn ghost">
+              <IoCloudDownloadOutline /> Export
+            </button>
+            <button className="btn primary" onClick={() => setAddOpen(true)}>
+              <IoAdd /> Add Voucher
+            </button>
           </div>
-          <div className="level-right">
-            <div className="field has-addons">
-              <p className="control is-expanded">
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="Cari judul/status…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </p>
-              <p className="control">
-                <div className="select">
-                  <select
-                    value={limit}
-                    onChange={(e) => {
-                      const v = Number(e.target.value) || 5;
-                      setLimit(v);
-                      setOffset(0);
-                    }}
-                  >
-                    {[5, 10, 20].map((n) => (
-                      <option key={n} value={n}>
-                        {n}/page
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </p>
-              <p className="control">
-                <button
-                  className="button is-primary"
-                  onClick={() => setAddOpen(true)}
-                >
-                  + Add Voucher
-                </button>
-              </p>
-            </div>
+        </div>
+
+        {/* Stat Cards */}
+        <div className="vp-stats">
+          <div className="stat">
+            <div className="stat-top">TOTAL VOUCHER</div>
+            <div className="stat-mid">{totalAll}</div>
           </div>
-        </nav>
 
-        {error && <div className="notification is-danger is-light">{error}</div>}
-        {loading && (
-          <progress className="progress is-small is-primary" max="100">
-            Loading…
-          </progress>
-        )}
-
-        <div className="card">
-          <div className="card-content">
-            <div className="table-container">
-              <table className="table is-fullwidth is-striped is-hoverable">
-                <thead>
-                  <tr>
-                    <th style={{ width: 64 }}>No</th>
-                    <th>Title</th>
-                    <th>Price</th>
-                    <th>Start</th>
-                    <th>End</th>
-                    <th>Inventory</th>
-                    <th>Status</th>
-                    <th style={{ width: 170 }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.length ? (
-                    filtered.map((v, idx) => (
-                      <tr key={v.id}>
-                        <td>{offset + idx + 1}</td>
-                        <td className="has-text-weight-medium">{v.title}</td>
-                        <td>{money(v.price)}</td>
-                        <td>{fmtDate(v.start)}</td>
-                        <td>{fmtDate(v.end)}</td>
-                        <td>{v.inventory ?? 0}</td>
-                        <td>
-                          <span className="tag is-info is-light">
-                            {statusLabel(v.status)}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="buttons are-small">
-                            <button
-                              className="button is-link is-light"
-                              onClick={() => openDetail(v)}
-                            >
-                              Detail
-                            </button>
-                            <button
-                              className="button is-info is-light"
-                              onClick={() => openEdit(v)}
-                            >
-                              Edit
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={8} className="has-text-centered">
-                        <p className="has-text-grey">Tidak ada data</p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+          <div className="stat">
+            <div className="stat-top between">
+              <span>VOUCHER ACTIVE</span>
+              <button className="icon-ghost" onClick={fetchVouchers} title="Refresh">
+                <IoRefreshOutline />
+              </button>
             </div>
+            <div className="stat-mid">{totalActive}</div>
+          </div>
 
-            <div className="level">
-              <div className="level-left">
-                <p className="has-text-grey is-size-7">
-                  Menampilkan {filtered.length} dari {total} data
-                </p>
-              </div>
-              <div className="level-right">
-                <div className="buttons">
-                  <button className="button" onClick={prev} disabled={page <= 1}>
-                    Prev
-                  </button>
-                  <span className="button is-static">
-                    Page {page} / {pages}
-                  </span>
-                  <button className="button" onClick={next} disabled={page >= pages}>
-                    Next
-                  </button>
-                </div>
-              </div>
+          <div className="stat">
+            <div className="stat-top between">
+              <span>VOUCHER INACTIVE</span>
+              <button className="icon-ghost" onClick={fetchVouchers} title="Refresh">
+                <IoRefreshOutline />
+              </button>
+            </div>
+            <div className="stat-mid">{totalInactive}</div>
+          </div>
+        </div>
+
+        {/* Toolbar */}
+        <div className="vp-toolbar">
+          <div className="search">
+            <span className="icon"><IoSearch /></span>
+            <input
+              placeholder="Search…"
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setOffset(0);
+              }}
+            />
+          </div>
+
+          <div className="select-wrap">
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="ALL">All Voucher</option>
+              <option value="1">Active</option>
+              <option value="0">Inactive</option>
+              <option value="2">Draft</option>
+            </select>
+          </div>
+
+          <div className="right-controls">
+            <div className="select-wrap sm">
+              <select
+                value={limit}
+                onChange={(e) => {
+                  const v = Number(e.target.value) || 10;
+                  setLimit(v);
+                  setOffset(0);
+                }}
+              >
+                {[10, 20, 50].map((n) => (
+                  <option key={n} value={n}>
+                    {n}/page
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
+
+        {/* Table */}
+        <div className="vp-table card">
+          {err && <div className="notification is-danger is-light">{err}</div>}
+          {loading && <progress className="progress is-small is-primary" max="100">Loading…</progress>}
+
+          <div className="table-container">
+            <table className="table is-fullwidth is-hoverable">
+              <thead>
+                <tr>
+                  <th style={{ width: 38 }}>
+                    <label className="checkbox">
+                      <input type="checkbox" onChange={() => {}} />
+                    </label>
+                  </th>
+                  <th style={{ width: 116 }}>Actions</th>
+                  <th>Voucher Code</th>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th className="has-text-right">Discount Value</th>
+                  <th>Start Date</th>
+                  <th>End Date</th>
+                  <th className="has-text-right">Usage Limit</th>
+                  <th>Status</th>
+                  <th>Created Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {applied.length ? (
+                  applied.map((v, idx) => (
+                    <tr key={v.id}>
+                      <td>
+                        <label className="checkbox"><input type="checkbox" /></label>
+                      </td>
+                      <td>
+                        <div className="row-actions">
+                          <button className="icon-ghost" title="View" onClick={() => openDetail(v)}>
+                            <IoEyeOutline />
+                          </button>
+                          <button className="icon-ghost" title="Edit" onClick={() => openEdit(v)}>
+                            <IoPencilOutline />
+                          </button>
+                          <button className="icon-ghost danger" title="Delete" onClick={() => alert("Confirm delete?")}>
+                            <IoTrashOutline />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="muted">#{v.code || v.code_voucher || "-"}</td>
+                      <td className="strong">{v.title || "-"}</td>
+                      <td className="muted">
+                        {categoryById.get(v.category_voucher_id) || v.category_name || "-"}
+                      </td>
+                      <td className="has-text-right">{
+                        v.discount != null ? `${v.discount}%` : "—"
+                      }</td>
+                      <td>{fmtDate(v.start)}</td>
+                      <td>{fmtDate(v.end)}</td>
+                      <td className="has-text-right">{Number.isFinite(v.inventory) ? v.inventory : "-"}</td>
+                      <td>
+                        <span className={statusChipClass(v.status)}>{STATUS_LABEL(v.status)}</span>
+                      </td>
+                      <td>{fmtDate(v.created_at)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={11} className="has-text-centered has-text-grey">Tidak ada data</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination like design */}
+          <div className="vp-pagination">
+            <button className="pg-ctrl" onClick={prev} disabled={page <= 1}>‹</button>
+            <span className={`pg-dot ${page === 1 ? "is-current" : ""}`}>1</span>
+            {page > 2 && <span className="pg-dot" onClick={() => setOffset(limit * (page - 2))}>{page - 1}</span>}
+            <span className="pg-dot is-current">{page}</span>
+            {page + 1 <= pages && <span className="pg-dot" onClick={() => setOffset(limit * page)}>{page + 1}</span>}
+            {page + 2 < pages && <span className="pg-ellipsis">…</span>}
+            {pages > 1 && <span className="pg-dot" onClick={() => setOffset(limit * (pages - 1))}>{pages}</span>}
+            <button className="pg-ctrl" onClick={next} disabled={page >= pages}>›</button>
+          </div>
+
+          <p className="is-size-7 has-text-grey">Page {page} of {pages}</p>
+        </div>
       </div>
 
-      {/* ADD VOUCHER MODAL */}
+      {/* ADD MODAL */}
       <div className={`modal ${addOpen ? "is-active" : ""}`}>
         <div className="modal-background" onClick={() => setAddOpen(false)} />
-        <div className="modal-card" style={{ maxWidth: 720 }}>
+        <div className="modal-card" style={{ maxWidth: 820 }}>
           <header className="modal-card-head">
             <p className="modal-card-title">Add Voucher</p>
-            <button
-              className="delete"
-              aria-label="close"
-              onClick={() => setAddOpen(false)}
-            />
+            <button className="delete" aria-label="close" onClick={() => setAddOpen(false)} />
           </header>
           <section className="modal-card-body">
-            {addError && (
-              <div className="notification is-danger is-light" role="alert">
-                {addError}
-              </div>
-            )}
+            {addError && <div className="notification is-danger is-light">{addError}</div>}
 
             <div className="columns">
               <div className="column">
                 <div className="field">
                   <label className="label">Title</label>
-                  <div className="control">
-                    <input
-                      className="input"
-                      type="text"
-                      placeholder="Voucher Diskon 50%"
-                      value={form.title}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, title: e.target.value }))
-                      }
-                    />
-                  </div>
+                  <input
+                    className="input"
+                    placeholder="Voucher Diskon 50%"
+                    value={form.title}
+                    onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                  />
                 </div>
               </div>
               <div className="column">
                 <div className="field">
                   <label className="label">Price (IDR)</label>
-                  <div className="control">
-                    <input
-                      className="input"
-                      type="number"
-                      min="0"
-                      step="100"
-                      placeholder="100000"
-                      value={form.price}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, price: e.target.value }))
-                      }
-                    />
-                  </div>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="100"
+                    placeholder="100000"
+                    value={form.price}
+                    onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))}
+                  />
                   <p className="help">Dikirim sebagai string 2 desimal, mis: 100000.00</p>
                 </div>
               </div>
@@ -589,75 +571,48 @@ export default function VoucherList() {
 
             <div className="field">
               <label className="label">Description</label>
-              <div className="control">
-                <textarea
-                  className="textarea"
-                  placeholder="Deskripsi voucher"
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, description: e.target.value }))
-                  }
-                />
-              </div>
+              <textarea
+                className="textarea"
+                placeholder="Deskripsi voucher"
+                value={form.description}
+                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              />
             </div>
 
             <div className="columns">
-              {/* VENDOR (dropdown) */}
               <div className="column">
                 <div className="field">
                   <label className="label">Vendor</label>
-                  <div className="control">
-                    <div className={`select is-fullwidth ${vendorsLoading ? "is-loading" : ""}`}>
-                      <select
-                        value={form.vendorId}
-                        onChange={(e) =>
-                          setForm((p) => ({ ...p, vendorId: e.target.value }))
-                        }
-                      >
-                        <option value="">-- Pilih Vendor --</option>
-                        {vendors.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            {v.name}
-                            {v.city ? ` · ${v.city}` : ""}
-                            {v.code_vendor ? ` · ${v.code_vendor}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className={`select is-fullwidth ${vendorsLoading ? "is-loading" : ""}`}>
+                    <select
+                      value={form.vendorId}
+                      onChange={(e) => setForm((p) => ({ ...p, vendorId: e.target.value }))}
+                    >
+                      <option value="">-- Pilih Vendor --</option>
+                      {vendors.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}{v.city ? ` · ${v.city}` : ""}{v.code_vendor ? ` · ${v.code_vendor}` : ""}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   {vendorsErr && <p className="help is-danger mt-1">{vendorsErr}</p>}
                 </div>
               </div>
 
-              {/* CATEGORY (dropdown) */}
               <div className="column">
                 <div className="field">
                   <label className="label">Category</label>
-                  {/* (Opsional) search kategori */}
-                  {/* <div className="control mb-1">
-                    <input
-                      className="input"
-                      placeholder="Cari kategori…"
-                      value={catSearch}
-                      onChange={(e) => setCatSearch(e.target.value)}
-                    />
-                  </div> */}
-                  <div className="control">
-                    <div className={`select is-fullwidth ${catLoading ? "is-loading" : ""}`}>
-                      <select
-                        value={form.categoryId}
-                        onChange={(e) =>
-                          setForm((p) => ({ ...p, categoryId: e.target.value }))
-                        }
-                      >
-                        <option value="">-- Pilih Kategori --</option>
-                        {categories.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.category_name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className={`select is-fullwidth ${catLoading ? "is-loading" : ""}`}>
+                    <select
+                      value={form.categoryId}
+                      onChange={(e) => setForm((p) => ({ ...p, categoryId: e.target.value }))}
+                    >
+                      <option value="">-- Pilih Kategori --</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>{c.category_name}</option>
+                      ))}
+                    </select>
                   </div>
                   {catErr && <p className="help is-danger mt-1">{catErr}</p>}
                 </div>
@@ -665,23 +620,16 @@ export default function VoucherList() {
 
               <div className="column">
                 <div className="field">
-                  <label className="label">Total Inventory</label>
-                  <div className="control">
-                    <input
-                      className="input"
-                      type="number"
-                      min="0"
-                      step="1"
-                      placeholder="100"
-                      value={form.totalInventory}
-                      onChange={(e) =>
-                        setForm((p) => ({
-                          ...p,
-                          totalInventory: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
+                  <label className="label">Usage Limit (Inventory)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="100"
+                    value={form.totalInventory}
+                    onChange={(e) => setForm((p) => ({ ...p, totalInventory: e.target.value }))}
+                  />
                 </div>
               </div>
             </div>
@@ -689,66 +637,38 @@ export default function VoucherList() {
             <div className="columns">
               <div className="column">
                 <div className="field">
-                  <label className="label">Start At</label>
-                  <div className="control">
-                    <input
-                      className="input"
-                      type="datetime-local"
-                      value={form.startAtLocal}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, startAtLocal: e.target.value }))
-                      }
-                    />
-                  </div>
+                  <label className="label">Start Date</label>
+                  <input
+                    className="input"
+                    type="datetime-local"
+                    value={form.startAtLocal}
+                    onChange={(e) => setForm((p) => ({ ...p, startAtLocal: e.target.value }))}
+                  />
                 </div>
               </div>
               <div className="column">
                 <div className="field">
-                  <label className="label">End At</label>
-                  <div className="control">
-                    <input
-                      className="input"
-                      type="datetime-local"
-                      value={form.endAtLocal}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, endAtLocal: e.target.value }))
-                      }
-                    />
-                  </div>
+                  <label className="label">End Date</label>
+                  <input
+                    className="input"
+                    type="datetime-local"
+                    value={form.endAtLocal}
+                    onChange={(e) => setForm((p) => ({ ...p, endAtLocal: e.target.value }))}
+                  />
                 </div>
               </div>
             </div>
 
-            {/* Uploader multi image + preview */}
+            {/* Images */}
             <div className="field">
               <label className="label">Images</label>
-              <div className="control">
-                <input
-                  className="input"
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={onPickFiles}
-                />
-              </div>
+              <input className="input" type="file" multiple accept="image/*" onChange={onPickFiles} />
               {previews.length > 0 && (
-                <div
-                  className="mt-3"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(5, 1fr)",
-                    gap: 10,
-                  }}
-                >
+                <div className="grid-imgs">
                   {previews.map((url, i) => (
-                    <div key={url} className="box p-2 has-text-centered">
-                      <figure className="image is-96x96" style={{ margin: "0 auto" }}>
-                        <img src={url} alt={`img-${i}`} style={{ objectFit: "cover" }} />
-                      </figure>
-                      <button
-                        className="button is-small is-danger is-light mt-2"
-                        onClick={() => removeImageAt(i)}
-                      >
+                    <div key={url} className="img-card">
+                      <img src={url} alt={`img-${i}`} />
+                      <button className="button is-small is-danger is-light" onClick={() => removeImageAt(i)}>
                         Hapus
                       </button>
                     </div>
@@ -759,130 +679,86 @@ export default function VoucherList() {
             </div>
           </section>
           <footer className="modal-card-foot is-justify-content-flex-end">
-            <button className="button" onClick={() => setAddOpen(false)} disabled={saving}>
-              Cancel
-            </button>
-            <button
-              className={`button is-primary ${saving ? "is-loading" : ""}`}
-              onClick={onAdd}
-              disabled={saving}
-            >
+            <button className="button" onClick={() => setAddOpen(false)} disabled={saving}>Cancel</button>
+            <button className={`button is-primary ${saving ? "is-loading" : ""}`} onClick={onAdd} disabled={saving}>
               Save
             </button>
           </footer>
         </div>
       </div>
 
-      {/* EDIT VOUCHER MODAL */}
+      {/* EDIT MODAL */}
       <div className={`modal ${editOpen ? "is-active" : ""}`}>
         <div className="modal-background" onClick={() => setEditOpen(false)} />
         <div className="modal-card" style={{ maxWidth: 640 }}>
           <header className="modal-card-head">
             <p className="modal-card-title">Edit Voucher</p>
-            <button
-              className="delete"
-              aria-label="close"
-              onClick={() => setEditOpen(false)}
-            />
+            <button className="delete" aria-label="close" onClick={() => setEditOpen(false)} />
           </header>
           <section className="modal-card-body">
-            {editError && (
-              <div className="notification is-danger is-light" role="alert">
-                {editError}
-              </div>
-            )}
+            {editError && <div className="notification is-danger is-light">{editError}</div>}
             <div className="field">
               <label className="label">Title</label>
-              <div className="control">
-                <input
-                  className="input"
-                  type="text"
-                  value={editForm.title}
-                  onChange={(e) =>
-                    setEditForm((p) => ({ ...p, title: e.target.value }))
-                  }
-                />
-              </div>
+              <input
+                className="input"
+                value={editForm.title}
+                onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))}
+              />
             </div>
             <div className="field">
               <label className="label">Price (IDR)</label>
-              <div className="control">
-                <input
-                  className="input"
-                  type="number"
-                  min="0"
-                  step="100"
-                  value={editForm.price}
-                  onChange={(e) =>
-                    setEditForm((p) => ({ ...p, price: e.target.value }))
-                  }
-                />
-              </div>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="100"
+                value={editForm.price}
+                onChange={(e) => setEditForm((p) => ({ ...p, price: e.target.value }))}
+              />
             </div>
             <div className="field">
-              <label className="label">End At</label>
-              <div className="control">
-                <input
-                  className="input"
-                  type="datetime-local"
-                  value={editForm.endAtLocal}
-                  onChange={(e) =>
-                    setEditForm((p) => ({ ...p, endAtLocal: e.target.value }))
-                  }
-                />
-              </div>
+              <label className="label">End Date</label>
+              <input
+                className="input"
+                type="datetime-local"
+                value={editForm.endAtLocal}
+                onChange={(e) => setEditForm((p) => ({ ...p, endAtLocal: e.target.value }))}
+              />
             </div>
             <div className="field">
               <label className="label">Status</label>
-              <div className="control">
-                <div className="select is-fullwidth">
-                  <select
-                    value={editForm.status}
-                    onChange={(e) =>
-                      setEditForm((p) => ({ ...p, status: e.target.value }))
-                    }
-                  >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="DRAFT">DRAFT</option>
-                    <option value="INACTIVE">INACTIVE</option>
-                  </select>
-                </div>
+              <div className="select is-fullwidth">
+                <select
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))}
+                >
+                  <option>Active</option>
+                  <option>Draft</option>
+                  <option>Inactive</option>
+                </select>
               </div>
             </div>
           </section>
           <footer className="modal-card-foot is-justify-content-flex-end">
-            <button className="button" onClick={() => setEditOpen(false)} disabled={editSaving}>
-              Cancel
-            </button>
-            <button
-              className={`button is-primary ${editSaving ? "is-loading" : ""}`}
-              onClick={onUpdate}
-              disabled={editSaving}
-            >
+            <button className="button" onClick={() => setEditOpen(false)} disabled={editSaving}>Cancel</button>
+            <button className={`button is-primary ${editSaving ? "is-loading" : ""}`} onClick={onUpdate} disabled={editSaving}>
               Update
             </button>
           </footer>
         </div>
       </div>
 
-      {/* DETAIL VOUCHER MODAL */}
+      {/* DETAIL MODAL */}
       <div className={`modal ${detailOpen ? "is-active" : ""}`}>
         <div className="modal-background" onClick={() => setDetailOpen(false)} />
-        <div className="modal-card" style={{ maxWidth: 820 }}>
+        <div className="modal-card" style={{ maxWidth: 860 }}>
           <header className="modal-card-head">
             <p className="modal-card-title">Voucher Detail</p>
             <button className="delete" aria-label="close" onClick={() => setDetailOpen(false)} />
           </header>
-
           <section className="modal-card-body">
-            {detailLoading && (
-              <progress className="progress is-small is-primary" max="100">Loading…</progress>
-            )}
-
-            {detailError && (
-              <div className="notification is-danger is-light">{detailError}</div>
-            )}
-
+            {detailLoading && <progress className="progress is-small is-primary" max="100">Loading…</progress>}
+            {detailError && <div className="notification is-danger is-light">{detailError}</div>}
             {detail && (
               <>
                 <h2 className="title is-5 mb-3">{detail.title}</h2>
@@ -891,13 +767,13 @@ export default function VoucherList() {
                     <p><strong>Kode:</strong> {detail.code || "-"}</p>
                     <p><strong>Harga:</strong> {money(detail.price)}</p>
                     <p><strong>Inventory:</strong> {detail.inventory ?? 0}</p>
-                    <p><strong>Status:</strong> {statusLabel(detail.status)}</p>
+                    <p><strong>Status:</strong> {STATUS_LABEL(detail.status)}</p>
                   </div>
                   <div className="column is-6">
                     <p><strong>Start:</strong> {fmtDate(detail.start)}</p>
                     <p><strong>End:</strong> {fmtDate(detail.end)}</p>
                     <p><strong>Vendor ID:</strong> {detail.vendor_id ?? "-"}</p>
-                    <p><strong>Kategori ID:</strong> {detail.category_voucher_id ?? "-"}</p>
+                    <p><strong>Kategori:</strong> {categoryById.get(detail.category_voucher_id) || "-"}</p>
                   </div>
                 </div>
 
@@ -908,33 +784,10 @@ export default function VoucherList() {
 
                 <h3 className="subtitle is-6">Images</h3>
                 {detail.images?.length ? (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-                      gap: 12,
-                    }}
-                  >
+                  <div className="grid-imgs">
                     {detail.images.map((img) => (
-                      <a
-                        key={img.id}
-                        href={imgUrl(img)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="box p-2"
-                      >
-                        <figure className="image is-128x128" style={{ margin: 0 }}>
-                          <img
-                            src={imgUrl(img)}
-                            alt={`img-${img.id}`}
-                            style={{
-                              width: "100%",
-                              height: "128px",
-                              objectFit: "cover",
-                              borderRadius: 6,
-                            }}
-                          />
-                        </figure>
+                      <a key={img.id} href={imgUrl(img)} target="_blank" rel="noreferrer" className="img-card">
+                        <img src={imgUrl(img)} alt={`img-${img.id}`} />
                       </a>
                     ))}
                   </div>
@@ -944,7 +797,6 @@ export default function VoucherList() {
               </>
             )}
           </section>
-
           <footer className="modal-card-foot is-justify-content-flex-end">
             <button className="button" onClick={() => setDetailOpen(false)}>Close</button>
           </footer>
@@ -953,3 +805,62 @@ export default function VoucherList() {
     </section>
   );
 }
+
+// ---------- Styles (lightweight, menyerupai desain) ----------
+const styles = `
+.voucher-page { padding-top: 0; }
+/* hilangkan padding horizontal bawaan Bulma di halaman ini saja */
+.voucher-page.section { padding-left: 0; padding-right: 0; }
+
+/* pastikan container benar-benar full-width */
+.voucher-page .container.is-fluid { max-width: none; width: 100%; }
+
+/* opsional: rapatkan kartu utama ke tepi */
+.voucher-page .vp-shell.card { margin-left: 0; margin-right: 0; }
+.vp-shell.card { border: 1px solid #eef1f6; border-radius: 14px; box-shadow: 0 4px 18px rgba(20,20,43,.06); padding: 14px; }
+.vp-head { display:flex; align-items:center; justify-content:space-between; padding:6px 8px 12px; }
+.vp-head h1 { font-size: 1.2rem; font-weight: 700; }
+.vp-actions { display:flex; gap:10px; }
+.btn { display:inline-flex; gap:8px; align-items:center; border-radius:10px; padding:8px 12px; border:1px solid #e7eaf0; background:#fff; }
+.btn.ghost{ background:#fff; }
+.btn.primary{ background:#ff2d87; border-color:#ff2d87; color:#fff; }
+.btn.primary:hover{ filter:brightness(.96); }
+
+.vp-stats { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; }
+.stat { border:1px solid #eef1f6; border-radius:12px; padding:12px 14px; background:#fbfcfe; }
+.stat-top{ color:#6b7280; font-size:.8rem; display:flex; align-items:center; gap:6px; }
+.stat-top.between{ justify-content:space-between; }
+.stat-mid{ font-size:1.6rem; font-weight:800; margin-top:6px; }
+
+.icon-ghost{ width:28px; height:28px; border-radius:50%; border:1px solid #e7eaf0; display:inline-flex; align-items:center; justify-content:center; color:#6b7280; background:#fff; }
+.icon-ghost:hover{ background:#f7f8fb; }
+.icon-ghost.danger{ color:#e05666; border-color:#f3d0d3; }
+
+.vp-toolbar { display:flex; gap:10px; align-items:center; padding:12px 6px; }
+.vp-toolbar .search{ position:relative; flex:1; }
+.vp-toolbar .search .icon{ position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#6b7280; }
+.vp-toolbar .search input{ width:100%; padding:10px 12px 10px 34px; border-radius:12px; border:1px solid #e7eaf0; background:#fff; }
+.select-wrap select{ border-radius:12px; border:1px solid #e7eaf0; background:#fff; padding:8px 12px; }
+.select-wrap.sm select{ padding:6px 10px; }
+
+.vp-table.card{ margin-top:8px; border:1px solid #eef1f6; border-radius:12px; padding:8px; }
+.table thead th{ background:#fbfcfe; color:#6b7280; border-color:#eef1f6; font-weight:600; font-size:.85rem; }
+.row-actions{ display:flex; gap:8px; }
+.muted{ color:#6b7280; }
+.strong{ font-weight:600; }
+
+.chip{ font-weight:700; font-size:.75rem; padding:4px 10px; border-radius:9999px; display:inline-block; }
+.chip--active{ color:#0f9b6c; background:#eafaf5; }
+.chip--inactive{ color:#d9534f; background:#feeeee; }
+.chip--draft{ color:#946200; background:#fff3d6; }
+
+.grid-imgs{ display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:12px; }
+.img-card{ border:1px solid #eef1f6; border-radius:10px; padding:8px; background:#fff; display:flex; flex-direction:column; gap:6px; align-items:center; }
+.img-card img{ width:100%; height:128px; object-fit:cover; border-radius:6px; }
+
+.vp-pagination{ display:flex; align-items:center; gap:6px; justify-content:flex-end; margin:10px 6px; }
+.pg-ctrl, .pg-dot{ border:1px solid #e7eaf0; background:#fff; border-radius:8px; padding:6px 10px; cursor:pointer; }
+.pg-dot.is-current{ background:#6d28d9; border-color:#6d28d9; color:#fff; }
+.pg-ellipsis{ padding:0 4px; color:#6b7280; }
+.pg-ctrl[disabled]{ opacity:.5; cursor:not-allowed; }
+`;

@@ -178,7 +178,7 @@ export default function AffiliateList() {
   };
 
   return (
-    <section className="section affiliate-page">
+    <section className="section affiliate-page vendor-page">
       <style>{css}</style>
 
       <div className="card soft-card">
@@ -625,6 +625,17 @@ export default function AffiliateList() {
 }
 
 const css = `
+.vendor-page { padding-top: 3; }
+/* hilangkan padding horizontal bawaan Bulma di halaman ini saja */
+.vendor-page.section { padding-left: 0; padding-right: 0; }
+
+/* pastikan container benar-benar full-width */
+.vendor-page .container.is-fluid { max-width: none; width: 100%; }
+
+/* opsional: rapatkan kartu utama ke tepi */
+.vendor-page .vp-shell.card { margin-left: 0; margin-right: 0; }
+.vendor-page .soft-card { border: 1px solid #eceff4; border-radius: 14px; box-shadow: 0 4px 20px rgba(20,20,43,.06); }
+
 .affiliate-page .soft-card {
   border: 1px solid #eceff4;
   border-radius: 14px;

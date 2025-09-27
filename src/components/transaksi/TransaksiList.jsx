@@ -42,26 +42,25 @@ export default function OrdersPage() {
   const [members, setMembers] = useState([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [membersErr, setMembersErr] = useState("");
-  const [memberSearch, setMemberSearch] = useState("");
 
-  // Vendor dropdown (opsional sebagai referensi filter voucher)
+  // Vendor dropdown (opsional filter voucher)
   const [vendorPick, setVendorPick] = useState("");
   const [vendorsCreate, setVendorsCreate] = useState([]);
   const [vendorsCreateLoading, setVendorsCreateLoading] = useState(false);
   const [vendorsCreateErr, setVendorsCreateErr] = useState("");
-  const [vendorCreateSearch, setVendorCreateSearch] = useState("");
 
   const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
 
-  // Items yang akan dibuat
+  // Items
   const [createItems, setCreateItems] = useState([{ id: 1, voucher_id: "", qty: 1, price: "" }]);
 
-  // Voucher list per baris (dropdown)
-  // shape: { [rowId]: { options: [], loading: false, err: "", search: "" } }
+  // Voucher list per baris
   const [voucherLists, setVoucherLists] = useState({});
 
   const token = (typeof window !== "undefined" && localStorage.getItem("token")) || "";
-  const authHeaders = token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+  const authHeaders = token
+    ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+    : { "Content-Type": "application/json" };
 
   // ===== Helpers
   const toRupiah = (n) =>
@@ -100,7 +99,10 @@ export default function OrdersPage() {
       setLoading(false);
     }
   };
-  useEffect(() => { fetchOrders(); /* eslint-disable-next-line */ }, [page, pageSize]);
+  useEffect(() => {
+    fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize]);
 
   // toolbar derived
   const paymentOptions = useMemo(() => Array.from(new Set(rows.map((r) => r.payment_methode).filter(Boolean))), [rows]);
@@ -159,7 +161,7 @@ export default function OrdersPage() {
     );
   };
 
-  // ===== Member/Vendor dropdown (create modal)
+  // ===== Member/Vendor dropdown
   const loadMembers = async (q = "") => {
     setMembersLoading(true);
     setMembersErr("");
@@ -201,7 +203,7 @@ export default function OrdersPage() {
       updateVoucherListState(rowId, { loading: true, err: "" });
       const params = { limit: 50, offset: 0 };
       if (search) params.q = search;
-      if (vendorPick) params.vendor_id = vendorPick; // filter by vendor bila dipilih
+      if (vendorPick) params.vendor_id = vendorPick; // filter vendor jika dipilih
       const { data } = await axios.get(`${API_BASE}/voucher/list-voucher`, { params, headers: authHeaders });
       const rows = Array.isArray(data?.vouchers) ? data.vouchers : Array.isArray(data?.data) ? data.data : [];
       updateVoucherListState(rowId, { options: rows, loading: false });
@@ -211,7 +213,7 @@ export default function OrdersPage() {
     }
   };
 
-  // buka modal -> load members, vendors, dan voucher untuk setiap baris
+  // Open create
   const openCreateModal = () => {
     setMemberId("");
     setPaymentMethod("Bank Transfer");
@@ -223,41 +225,25 @@ export default function OrdersPage() {
     setOpenCreate(true);
   };
 
-  useEffect(() => { if (openCreate) { loadMembers(""); loadVendorsCreate(""); } }, [openCreate]); // init dropdowns
-  // debounce member search & vendor search
-  useEffect(() => {
-    if (!openCreate) return;
-    const t = setTimeout(() => loadMembers(memberSearch.trim()), 300);
-    return () => clearTimeout(t);
-  }, [memberSearch, openCreate]);
-  useEffect(() => {
-    if (!openCreate) return;
-    const t = setTimeout(() => loadVendorsCreate(vendorCreateSearch.trim()), 300);
-    return () => clearTimeout(t);
-  }, [vendorCreateSearch, openCreate]);
+  useEffect(() => { if (openCreate) { loadMembers(""); loadVendorsCreate(""); } }, [openCreate]);
 
-  // load vouchers untuk setiap baris saat modal dibuka, vendorPick berubah, atau keyword per baris berubah
-  const voucherSearchKey = useMemo(
-    () => createItems.map((r) => voucherLists[r.id]?.search || "").join("|"),
-    [createItems, voucherLists]
-  );
+  // load vouchers for each row when modal open / vendorPick changed / row count changed
   useEffect(() => {
     if (!openCreate) return;
     const timers = createItems.map((row) =>
       setTimeout(() => {
         const s = voucherLists[row.id]?.search || "";
         loadVouchersForRow(row.id, s.trim());
-      }, 300)
+      }, 200)
     );
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openCreate, vendorPick, voucherSearchKey, createItems.length]);
+  }, [openCreate, vendorPick, createItems.length]);
 
   // Items helpers
   const addCreateRow = () => {
     setCreateItems((prev) => {
       const id = prev.length ? Math.max(...prev.map((p) => p.id)) + 1 : 1;
-      // init state dropdown row baru
       setTimeout(() => updateVoucherListState(id, { options: [], loading: false, err: "", search: "" }), 0);
       return [...prev, { id, voucher_id: "", qty: 1, price: "" }];
     });
@@ -353,123 +339,154 @@ export default function OrdersPage() {
 
   // ===== UI
   return (
-    <section className="section">
-      <div className="container">
-        <h1 className="title">Order</h1>
+    <section className="section vendor-page">
+      {/* inject styles so layout match the design */}
+      <style>{pageCss}</style>
 
-        {/* Toolbar */}
-        <div className="box">
-          <div className="columns is-multiline is-vcentered">
-            <div className="column is-narrow">
-              <div className="select">
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="">All Status</option>
-                  {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="column is-narrow">
-              <div className="select">
-                <select value={pmFilter} onChange={(e) => setPmFilter(e.target.value)}>
-                  <option value="">Payment Method</option>
-                  {paymentOptions.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="column is-narrow">
-              <div className="select">
-                <select value={vendorFilter} onChange={(e) => setVendorFilter(e.target.value)}>
-                  <option value="">Vendor</option>
-                  {vendorOptions.map((v) => <option key={v} value={v}>Vendor {v}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="column is-narrow"><input type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
-            <div className="column is-narrow"><input type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-            <div className="column"><input className="input" placeholder="Order code / buyer / vendor" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
-            <div className="column is-narrow"><button className="button" onClick={applyFilters}>Apply</button></div>
-            <div className="column is-narrow"><button className="button is-light" onClick={clearFilters}>Reset</button></div>
-            <div className="column is-narrow"><button className="button is-link" onClick={exportOrdersCSV} disabled={!filtered.length}>Export</button></div>
-            <div className="column is-narrow"><button className="button is-danger" onClick={openCreateModal}>+ Create Order</button></div>
-          </div>
-        </div>
-
-        {/* Alerts */}
-        {err && <div className="notification is-danger is-light">{err}</div>}
-        {success && <div className="notification is-success is-light">{success}</div>}
-        {loading && <progress className="progress is-small is-primary" max="100">Loading…</progress>}
-
-        {/* Tabel Orders */}
-        <div className="card">
+      <div className="container is-fluid">
+        <div className="card soft-card vp-shell">
           <div className="card-content">
-            <div className="table-container">
-              <table className="table is-fullwidth is-striped is-hoverable">
-                <thead>
-                  <tr>
-                    <th style={{ width: 64 }}>No</th>
-                    <th>Order ID</th>
-                    <th>Customer</th>
-                    <th>Vendor Name</th>
-                    <th>Item Counts</th>
-                    <th className="has-text-right">Total Amount</th>
-                    <th>Status</th>
-                    <th>Payment Method</th>
-                    <th>Created at</th>
-                    <th style={{ width: 120 }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.length ? (
-                    filtered.map((r, idx) => {
-                      const uniqVendors = Array.from(new Set((r.details || []).map((d) => d.voucher?.vendor_id).filter(Boolean)));
-                      const vendorLabel = !uniqVendors.length ? "—" : uniqVendors.length === 1 ? `Vendor ${uniqVendors[0]}` : `Vendor ${uniqVendors[0]} +${uniqVendors.length - 1}`;
-                      return (
-                        <tr key={r.id}>
-                          <td>{(page - 1) * pageSize + idx + 1}</td>
-                          <td className="has-text-weight-medium">#{r.code_trx}</td>
-                          <td>{r.member?.name_member || "—"}</td>
-                          <td>{vendorLabel}</td>
-                          <td>{Array.isArray(r.details) ? r.details.length : 0}</td>
-                          <td className="has-text-right">{toRupiah(r.totalAmount)}</td>
-                          <td>{statusBadge(r.status)}</td>
-                          <td>{r.payment_methode || "—"}</td>
-                          <td>{fmtTanggal(r.created_at || r.date_order)}</td>
-                          <td>
-                            <div className="buttons are-small">
-                              <button className="button is-info is-light" onClick={() => openDetailModal(r)}>Detail</button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr><td colSpan={10} className="has-text-centered has-text-grey">Tidak ada data</td></tr>
-                  )}
-                </tbody>
-                {filtered.length > 0 && (
-                  <tfoot>
+            <h1 className="title is-5 mb-4">Order</h1>
+
+            {/* Toolbar */}
+            <div className="toolbar mt-1 mb-4">
+              <div className="toolbar-row">
+                <div className="pill">
+                  <div className="select is-rounded select-pill">
+                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                      <option value="">All Status</option>
+                      {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="pill">
+                  <div className="select is-rounded select-pill">
+                    <select value={pmFilter} onChange={(e) => setPmFilter(e.target.value)}>
+                      <option value="">Payment Method</option>
+                      {paymentOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="pill">
+                  <div className="select is-rounded select-pill">
+                    <select value={vendorFilter} onChange={(e) => setVendorFilter(e.target.value)}>
+                      <option value="">Vendor</option>
+                      {vendorOptions.map((v) => <option key={v} value={v}>Vendor {v}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="pill">
+                  <div className="date-wrap">
+                    <input type="date" className="input is-rounded input-date" value={from} onChange={(e) => setFrom(e.target.value)} />
+                    <span style={{ margin: "0 8px" }}>—</span>
+                    <input type="date" className="input is-rounded input-date" value={to} onChange={(e) => setTo(e.target.value)} />
+                  </div>
+                </div>
+                <div className="pill pill-search is-flex-grow-1">
+                  <div className="control has-icons-left">
+                    <input
+                      className="input is-rounded"
+                      placeholder="Order code / buyer / vendor"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                    />
+                    <span className="icon is-left">🔎</span>
+                  </div>
+                </div>
+                <div className="pill">
+                  <button className="button" onClick={applyFilters}>Apply</button>
+                </div>
+                <div className="pill">
+                  <button className="button is-light" onClick={clearFilters}>Reset</button>
+                </div>
+                <div className="pill">
+                  <button className="button is-link" onClick={exportOrdersCSV} disabled={!filtered.length}>Export</button>
+                </div>
+                <div className="pill">
+                  <button className="button is-danger" onClick={openCreateModal}>+ Create Order</button>
+                </div>
+              </div>
+            </div>
+
+            {/* Alerts */}
+            {err && <div className="notification is-danger is-light">{err}</div>}
+            {success && <div className="notification is-success is-light">{success}</div>}
+            {loading && <progress className="progress is-small is-primary" max="100">Loading…</progress>}
+
+            {/* Tabel Orders */}
+            <div className="table-wrap">
+              <div className="table-container">
+                <table className="table is-fullwidth is-hoverable affiliate-table">
+                  <thead>
                     <tr>
-                      <th colSpan={5}>TOTAL</th>
-                      <th className="has-text-right">{toRupiah(totals.omzet)}</th>
-                      <th colSpan={4} />
+                      <th style={{ width: 64 }}>No</th>
+                      <th>Order ID</th>
+                      <th>Customer</th>
+                      <th>Vendor Name</th>
+                      <th>Item Counts</th>
+                      <th className="has-text-right">Total Amount</th>
+                      <th>Status</th>
+                      <th>Payment Method</th>
+                      <th>Created at</th>
+                      <th style={{ width: 120 }}>Actions</th>
                     </tr>
-                  </tfoot>
-                )}
-              </table>
+                  </thead>
+                  <tbody>
+                    {filtered.length ? (
+                      filtered.map((r, idx) => {
+                        const uniqVendors = Array.from(new Set((r.details || []).map((d) => d.voucher?.vendor_id).filter(Boolean)));
+                        const vendorLabel = !uniqVendors.length ? "—" : uniqVendors.length === 1 ? `Vendor ${uniqVendors[0]}` : `Vendor ${uniqVendors[0]} +${uniqVendors.length - 1}`;
+                        return (
+                          <tr key={r.id}>
+                            <td>{(page - 1) * pageSize + idx + 1}</td>
+                            <td className="has-text-weight-medium">#{r.code_trx}</td>
+                            <td>{r.member?.name_member || "—"}</td>
+                            <td>{vendorLabel}</td>
+                            <td>{Array.isArray(r.details) ? r.details.length : 0}</td>
+                            <td className="has-text-right">{toRupiah(r.totalAmount)}</td>
+                            <td>{statusBadge(r.status)}</td>
+                            <td>{r.payment_methode || "—"}</td>
+                            <td>{fmtTanggal(r.created_at || r.date_order)}</td>
+                            <td>
+                              <div className="buttons are-small">
+                                <button className="button is-info is-light" onClick={() => openDetailModal(r)}>Detail</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr><td colSpan={10} className="has-text-centered has-text-grey">Tidak ada data</td></tr>
+                    )}
+                  </tbody>
+                  {filtered.length > 0 && (
+                    <tfoot>
+                      <tr>
+                        <th colSpan={5}>TOTAL</th>
+                        <th className="has-text-right">{toRupiah(totals.omzet)}</th>
+                        <th colSpan={4} />
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
             </div>
 
             {/* Pagination */}
-            <nav className="pagination is-centered" role="navigation" aria-label="pagination">
-              <button className="pagination-previous" disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>
-              <button className="pagination-next" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</button>
-              <ul className="pagination-list">
-                <li><span className="pagination-link is-current">{page}</span></li>
-                {page < totalPages && <li><button className="pagination-link" onClick={() => setPage(page + 1)}>{page + 1}</button></li>}
-                {page + 1 < totalPages && <li><button className="pagination-link" onClick={() => setPage(page + 2)}>{page + 2}</button></li>}
-              </ul>
-            </nav>
-
-            <p className="has-text-grey is-size-7">Page {page} of {totalPages}</p>
+            <div className="level mt-3">
+              <div className="level-left">
+                <p className="is-size-7 has-text-grey">Page {page} of {totalPages}</p>
+              </div>
+              <div className="level-right">
+                <nav className="pagination is-small" role="navigation" aria-label="pagination">
+                  <button className="pagination-ctrl" disabled={page <= 1} onClick={() => setPage(page - 1)}>‹</button>
+                  <button className="page-dot is-current">{page}</button>
+                  {page < totalPages && <button className="page-dot" onClick={() => setPage(page + 1)}>{page + 1}</button>}
+                  {page + 1 < totalPages && <button className="page-dot" onClick={() => setPage(page + 2)}>{page + 2}</button>}
+                  <button className="pagination-ctrl" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>›</button>
+                </nav>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -560,40 +577,30 @@ export default function OrdersPage() {
             <div className="columns is-multiline">
               <div className="column is-4">
                 <label className="label">Member</label>
-                <div className="field has-addons">
-                  <p className="control is-expanded">
-                    <div className={`select is-fullwidth ${membersLoading ? "is-loading" : ""}`}>
-                      <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
-                        <option value="">-- Pilih Member --</option>
-                        {members.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name_member || "-"}{m.email ? ` · ${m.email}` : ""}{m.code_member ? ` · ${m.code_member}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </p>
-                  
+                <div className={`select is-fullwidth ${membersLoading ? "is-loading" : ""}`}>
+                  <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+                    <option value="">-- Pilih Member --</option>
+                    {members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name_member || "-"}{m.email ? ` · ${m.email}` : ""}{m.code_member ? ` · ${m.code_member}` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 {membersErr && <p className="help is-danger mt-1">{membersErr}</p>}
               </div>
 
               <div className="column is-4">
                 <label className="label">Vendor (opsional untuk filter voucher)</label>
-                <div className="field has-addons">
-                  <p className="control is-expanded">
-                    <div className={`select is-fullwidth ${vendorsCreateLoading ? "is-loading" : ""}`}>
-                      <select value={vendorPick} onChange={(e) => setVendorPick(e.target.value)}>
-                        <option value="">-- Pilih Vendor --</option>
-                        {vendorsCreate.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            {v.name}{v.city ? ` · ${v.city}` : ""}{v.code_vendor ? ` · ${v.code_vendor}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </p>
-                 
+                <div className={`select is-fullwidth ${vendorsCreateLoading ? "is-loading" : ""}`}>
+                  <select value={vendorPick} onChange={(e) => setVendorPick(e.target.value)}>
+                    <option value="">-- Pilih Vendor --</option>
+                    {vendorsCreate.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}{v.city ? ` · ${v.city}` : ""}{v.code_vendor ? ` · ${v.code_vendor}` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 {vendorsCreateErr && <p className="help is-danger mt-1">{vendorsCreateErr}</p>}
               </div>
@@ -601,21 +608,19 @@ export default function OrdersPage() {
               <div className="column is-4">
                 <div className="field">
                   <label className="label">Payment Method</label>
-                  <div className="control">
-                    <div className="select is-fullwidth">
-                      <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                        <option>Bank Transfer</option>
-                        <option>Credit Card</option>
-                        <option>Cash</option>
-                        <option>Manual</option>
-                      </select>
-                    </div>
+                  <div className="select is-fullwidth">
+                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                      <option>Bank Transfer</option>
+                      <option>Credit Card</option>
+                      <option>Cash</option>
+                      <option>Manual</option>
+                    </select>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Items (voucher dari list-voucher) */}
+            {/* Items */}
             <div className="table-container">
               <table className="table is-fullwidth is-striped is-hoverable">
                 <thead>
@@ -636,29 +641,23 @@ export default function OrdersPage() {
                       <tr key={it.id}>
                         <td>{idx + 1}</td>
                         <td>
-                          <div className="field has-addons">
-                            <p className="control is-expanded">
-                              <div className={`select is-fullwidth ${state.loading ? "is-loading" : ""}`}>
-                                <select
-                                  value={it.voucher_id}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    updateCreateRow(it.id, "voucher_id", val);
-                                    // auto-set price dari voucher terpilih
-                                    const v = state.options.find((o) => String(o.id) === String(val));
-                                    if (v) updateCreateRow(it.id, "price", Number(v.price || 0));
-                                  }}
-                                >
-                                  <option value="">-- Pilih Voucher --</option>
-                                  {state.options.map((v) => (
-                                    <option key={v.id} value={v.id}>
-                                      {v.title} · ID {v.id} · Rp{Number(v.price || 0).toLocaleString("id-ID")}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            </p>
-                           
+                          <div className={`select is-fullwidth ${state.loading ? "is-loading" : ""}`}>
+                            <select
+                              value={it.voucher_id}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateCreateRow(it.id, "voucher_id", val);
+                                const v = state.options.find((o) => String(o.id) === String(val));
+                                if (v) updateCreateRow(it.id, "price", Number(v.price || 0));
+                              }}
+                            >
+                              <option value="">-- Pilih Voucher --</option>
+                              {state.options.map((v) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.title} · ID {v.id} · Rp{Number(v.price || 0).toLocaleString("id-ID")}
+                                </option>
+                              ))}
+                            </select>
                           </div>
                           {state.err && <p className="help is-danger">{state.err}</p>}
                           {selected?.vendor_id && vendorPick && String(selected.vendor_id) !== String(vendorPick) && (
@@ -719,3 +718,28 @@ export default function OrdersPage() {
     </section>
   );
 }
+
+/* ---- Styles to match the design (no side gap, soft card, nice toolbar) ---- */
+const pageCss = `
+.vendor-page.section { padding-left: 0; padding-right: 0; }
+.vendor-page .container.is-fluid { max-width: none; width: 100%; }
+.vp-shell { margin-left: 0; margin-right: 0; }
+.soft-card { border: 1px solid #eceff4; border-radius: 14px; box-shadow: 0 4px 20px rgba(20,20,43,.06); }
+
+/* toolbar pills */
+.toolbar-row { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
+.pill { display:flex; align-items:center; }
+.select-pill select, .toolbar .input { border-radius:9999px !important; background:#f7f8fb; border-color:#e9edf2; }
+.pill-search { min-width:260px; }
+.date-wrap { display:flex; align-items:center; gap:.4rem; }
+.input-date { width:150px; }
+
+/* table */
+.table-wrap { border:1px solid #eef1f6; border-radius:12px; overflow:hidden; }
+.affiliate-table thead th { background:#fbfcfe; color:#6b7280; font-weight:600; font-size:.85rem; border-color:#eef1f6; }
+
+/* pagination buttons (match look) */
+.pagination-ctrl, .page-dot { border:1px solid #e7eaf0; background:#fff; border-radius:8px; padding:6px 10px; margin-left:6px; }
+.page-dot.is-current { background:#6d28d9; border-color:#6d28d9; color:#fff; }
+.pagination-ctrl[disabled], .page-dot[disabled] { opacity:.5; cursor:not-allowed; }
+`;
