@@ -27,8 +27,7 @@ const statusColor = (s) => (Number(s) === 1 ? "active" : "suspended");
 
 // (optional) sample provinces list
 const PROVINCES = [
-  "DKI Jakarta", "Jawa Barat", "Banten", "Jawa Tengah", "DI Yogyakarta",
-  "Jawa Timur", "Bali", "Sumatera Utara", "Sumatera Barat", "Riau",
+  "Johor", "MALAKA", "N.SEMBILAN", "KEDAH", "PERLIS", "PULAU PINANG",
 ];
 
 export default function VendorList() {
