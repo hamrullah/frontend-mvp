@@ -7,13 +7,13 @@ const STATUS_LABEL = { 1: "Completed", 0: "Pending", 2: "Cancelled", 3: "Refunde
 const STATUS_TAG = { Completed: "is-success", Pending: "is-warning", Cancelled: "is-danger", Refunded: "is-light", Paid: "is-primary" };
 
 export default function OrdersPage() {
-  // ====== state utama
+  // ====== main state
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [success, setSuccess] = useState("");
 
-  // toolbar & filter
+  // toolbar & filters
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [pmFilter, setPmFilter] = useState("");
@@ -43,7 +43,7 @@ export default function OrdersPage() {
   const [membersLoading, setMembersLoading] = useState(false);
   const [membersErr, setMembersErr] = useState("");
 
-  // Vendor dropdown (opsional filter voucher)
+  // Vendor dropdown (optional voucher filter)
   const [vendorPick, setVendorPick] = useState("");
   const [vendorsCreate, setVendorsCreate] = useState([]);
   const [vendorsCreateLoading, setVendorsCreateLoading] = useState(false);
@@ -54,7 +54,7 @@ export default function OrdersPage() {
   // Items
   const [createItems, setCreateItems] = useState([{ id: 1, voucher_id: "", qty: 1, price: "" }]);
 
-  // Voucher list per baris
+  // Voucher list per row
   const [voucherLists, setVoucherLists] = useState({});
 
   const token = (typeof window !== "undefined" && localStorage.getItem("token")) || "";
@@ -63,9 +63,9 @@ export default function OrdersPage() {
     : { "Content-Type": "application/json" };
 
   // ===== Helpers
-  const toRupiah = (n) =>
-    new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(Number(n || 0));
-  const fmtTanggal = (s) => (s ? new Date(s).toLocaleString("id-ID") : "—");
+  const toRinggit = (n) =>
+    new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(Number(n || 0));
+  const fmtDateTime = (s) => (s ? new Date(s).toLocaleString("en-MY") : "—");
   const statusBadge = (statusInt) => {
     const label = STATUS_LABEL[statusInt] || "Pending";
     const tag = STATUS_TAG[label] || "is-light";
@@ -94,7 +94,7 @@ export default function OrdersPage() {
       setTotal(Number(data?.total || 0));
     } catch (e) {
       console.error(e);
-      setErr(e?.response?.data?.error || "Gagal mengambil data order");
+      setErr(e?.response?.data?.error || "Failed to fetch orders.");
     } finally {
       setLoading(false);
     }
@@ -152,11 +152,11 @@ export default function OrdersPage() {
     setDetailItems(
       items.map((it) => ({
         detail_id: it.id,
-        code_barang: it.voucher?.code_voucher || it.voucher_id,
-        nama_barang: it.voucher?.title || "Voucher",
+        code_item: it.voucher?.code_voucher || it.voucher_id,
+        item_name: it.voucher?.title || "Voucher",
         vendor: it.voucher?.vendor_id || "-",
         qty: Number(it.qty || 0),
-        harga: Number(it.price || 0),
+        price: Number(it.price || 0),
       }))
     );
   };
@@ -173,7 +173,7 @@ export default function OrdersPage() {
       setMembers(Array.isArray(data?.members) ? data.members : []);
     } catch (e) {
       console.error(e);
-      setMembersErr(e?.response?.data?.error || "Gagal memuat member");
+      setMembersErr(e?.response?.data?.error || "Failed to load members.");
       setMembers([]);
     } finally {
       setMembersLoading(false);
@@ -190,26 +190,26 @@ export default function OrdersPage() {
       setVendorsCreate(Array.isArray(data?.vendors) ? data.vendors : []);
     } catch (e) {
       console.error(e);
-      setVendorsCreateErr(e?.response?.data?.error || "Gagal memuat vendor");
+      setVendorsCreateErr(e?.response?.data?.error || "Failed to load vendors.");
       setVendorsCreate([]);
     } finally {
       setVendorsCreateLoading(false);
     }
   };
 
-  // ===== Voucher dropdown per baris
+  // ===== Voucher dropdown per row
   const loadVouchersForRow = async (rowId, search = "") => {
     try {
       updateVoucherListState(rowId, { loading: true, err: "" });
       const params = { limit: 50, offset: 0 };
       if (search) params.q = search;
-      if (vendorPick) params.vendor_id = vendorPick; // filter vendor jika dipilih
+      if (vendorPick) params.vendor_id = vendorPick; // filter by vendor if selected
       const { data } = await axios.get(`${API_BASE}/voucher/list-voucher`, { params, headers: authHeaders });
       const rows = Array.isArray(data?.vouchers) ? data.vouchers : Array.isArray(data?.data) ? data.data : [];
       updateVoucherListState(rowId, { options: rows, loading: false });
     } catch (e) {
       console.error(e);
-      updateVoucherListState(rowId, { loading: false, err: e?.response?.data?.error || "Gagal memuat voucher" });
+      updateVoucherListState(rowId, { loading: false, err: e?.response?.data?.error || "Failed to load vouchers." });
     }
   };
 
@@ -260,13 +260,13 @@ export default function OrdersPage() {
   const createTotal = useMemo(() => createItems.reduce((a, r) => a + createSubtotal(r), 0), [createItems]);
 
   const validateCreate = () => {
-    if (!memberId) return "member_id wajib diisi";
-    if (!createItems.length) return "Minimal 1 item";
+    if (!memberId) return "member_id is required";
+    if (!createItems.length) return "At least 1 item is required";
     for (let i = 0; i < createItems.length; i++) {
       const it = createItems[i];
-      if (!it.voucher_id) return `voucher di baris ${i + 1} wajib dipilih`;
-      if (!Number.isInteger(Number(it.qty)) || Number(it.qty) <= 0) return `qty di baris ${i + 1} tidak valid`;
-      if (!Number.isFinite(Number(it.price)) || Number(it.price) < 0) return `price di baris ${i + 1} tidak valid`;
+      if (!it.voucher_id) return `Voucher in row ${i + 1} must be selected`;
+      if (!Number.isInteger(Number(it.qty)) || Number(it.qty) <= 0) return `Quantity in row ${i + 1} is invalid`;
+      if (!Number.isFinite(Number(it.price)) || Number(it.price) < 0) return `Price in row ${i + 1} is invalid`;
     }
     return "";
   };
@@ -283,11 +283,11 @@ export default function OrdersPage() {
       };
       const { data } = await axios.post(`${API_BASE}/orders/add-order`, payload, { headers: authHeaders });
       setOpenCreate(false);
-      setSuccess(`Order ${data?.data?.code_trx || ""} berhasil dibuat.`);
+      setSuccess(`Order ${data?.data?.code_trx || ""} has been created.`);
       fetchOrders();
     } catch (e) {
       console.error(e);
-      setErr(e?.response?.data?.error || "Gagal membuat order.");
+      setErr(e?.response?.data?.error || "Failed to create order.");
     } finally { setSaving(false); }
   };
 
@@ -315,21 +315,21 @@ export default function OrdersPage() {
       { label: "Total Amount", key: "totalAmount" },
       { label: "Status", value: (r) => STATUS_LABEL[r.status] || "Pending" },
       { label: "Payment Method", key: "payment_methode" },
-      { label: "Created at", value: (r) => fmtTanggal(r.created_at || r.date_order) },
+      { label: "Created at", value: (r) => fmtDateTime(r.created_at || r.date_order) },
     ];
     downloadCSV(`orders_${Date.now()}.csv`, filtered, cols);
   };
   const applyFilters = () => { setPage(1); fetchOrders(); };
   const clearFilters = () => { setStatusFilter(""); setPmFilter(""); setVendorFilter(""); setFrom(""); setTo(""); setQuery(""); setPage(1); fetchOrders(); };
 
-  // ===== Cetak detail
+  // ===== Print detail
   const printDetail = () => {
     if (!detailRef.current) return;
     const win = window.open("", "PRINT", "width=900,height=650"); if (!win) return;
     const html = `
       <html>
         <head>
-          <title>Order Detail</title>
+          <title>Order Details</title>
           <style>body{font-family:Arial,sans-serif}th,td{border:1px solid #ddd;padding:8px}table{width:100%;border-collapse:collapse}th{background:#f5f5f5}</style>
         </head>
         <body>${detailRef.current.innerHTML}<script>window.print()</script></body>
@@ -346,7 +346,7 @@ export default function OrdersPage() {
       <div className="container is-fluid">
         <div className="card soft-card vp-shell">
           <div className="card-content">
-            <h1 className="title is-5 mb-4">Order</h1>
+            <h1 className="title is-5 mb-4">Orders</h1>
 
             {/* Toolbar */}
             <div className="toolbar mt-1 mb-4">
@@ -413,7 +413,7 @@ export default function OrdersPage() {
             {success && <div className="notification is-success is-light">{success}</div>}
             {loading && <progress className="progress is-small is-primary" max="100">Loading…</progress>}
 
-            {/* Tabel Orders */}
+            {/* Orders Table */}
             <div className="table-wrap">
               <div className="table-container">
                 <table className="table is-fullwidth is-hoverable affiliate-table">
@@ -443,27 +443,27 @@ export default function OrdersPage() {
                             <td>{r.member?.name_member || "—"}</td>
                             <td>{vendorLabel}</td>
                             <td>{Array.isArray(r.details) ? r.details.length : 0}</td>
-                            <td className="has-text-right">{toRupiah(r.totalAmount)}</td>
+                            <td className="has-text-right">{toRinggit(r.totalAmount)}</td>
                             <td>{statusBadge(r.status)}</td>
                             <td>{r.payment_methode || "—"}</td>
-                            <td>{fmtTanggal(r.created_at || r.date_order)}</td>
+                            <td>{fmtDateTime(r.created_at || r.date_order)}</td>
                             <td>
                               <div className="buttons are-small">
-                                <button className="button is-info is-light" onClick={() => openDetailModal(r)}>Detail</button>
+                                <button className="button is-info is-light" onClick={() => openDetailModal(r)}>Details</button>
                               </div>
                             </td>
                           </tr>
                         );
                       })
                     ) : (
-                      <tr><td colSpan={10} className="has-text-centered has-text-grey">Tidak ada data</td></tr>
+                      <tr><td colSpan={10} className="has-text-centered has-text-grey">No data</td></tr>
                     )}
                   </tbody>
                   {filtered.length > 0 && (
                     <tfoot>
                       <tr>
                         <th colSpan={5}>TOTAL</th>
-                        <th className="has-text-right">{toRupiah(totals.omzet)}</th>
+                        <th className="has-text-right">{toRinggit(totals.omzet)}</th>
                         <th colSpan={4} />
                       </tr>
                     </tfoot>
@@ -491,12 +491,12 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Modal Detail */}
+      {/* Detail Modal */}
       <div className={`modal ${openDetail ? "is-active" : ""}`}>
         <div className="modal-background" onClick={() => setOpenDetail(false)} />
         <div className="modal-card" style={{ width: "90%", maxWidth: 1100 }}>
           <header className="modal-card-head">
-            <p className="modal-card-title">Detail Order</p>
+            <p className="modal-card-title">Order Details</p>
             <button className="delete" aria-label="close" onClick={() => setOpenDetail(false)} />
           </header>
           <section className="modal-card-body">
@@ -506,7 +506,7 @@ export default function OrdersPage() {
                   <div className="columns is-multiline">
                     <div className="column is-4">
                       <p><strong>Order Code:</strong> {detailHeader.id}</p>
-                      <p><strong>Created At:</strong> {fmtTanggal(detailHeader.createdAt)}</p>
+                      <p><strong>Created At:</strong> {fmtDateTime(detailHeader.createdAt)}</p>
                     </div>
                     <div className="column is-4">
                       <p><strong>Customer:</strong> {detailHeader.customerName}</p>
@@ -514,7 +514,7 @@ export default function OrdersPage() {
                     </div>
                     <div className="column is-4">
                       <p><strong>Status:</strong> {detailHeader.paymentStatus}</p>
-                      <p><strong>Total:</strong> {toRupiah(detailHeader.totalAmount)}</p>
+                      <p><strong>Total:</strong> {toRinggit(detailHeader.totalAmount)}</p>
                     </div>
                   </div>
 
@@ -523,11 +523,11 @@ export default function OrdersPage() {
                       <thead>
                         <tr>
                           <th style={{ width: 64 }}>No</th>
-                          <th>Kode</th>
-                          <th>Nama Voucher</th>
+                          <th>Code</th>
+                          <th>Voucher Name</th>
                           <th>Vendor</th>
                           <th className="has-text-right" style={{ width: 120 }}>Qty</th>
-                          <th className="has-text-right" style={{ width: 160 }}>Harga</th>
+                          <th className="has-text-right" style={{ width: 160 }}>Price</th>
                           <th className="has-text-right">Subtotal</th>
                         </tr>
                       </thead>
@@ -536,16 +536,16 @@ export default function OrdersPage() {
                           detailItems.map((it, idx) => (
                             <tr key={it.detail_id}>
                               <td>{idx + 1}</td>
-                              <td className="has-text-weight-medium">{it.code_barang}</td>
-                              <td>{it.nama_barang}</td>
+                              <td className="has-text-weight-medium">{it.code_item}</td>
+                              <td>{it.item_name}</td>
                               <td>{it.vendor}</td>
                               <td className="has-text-right">{it.qty}</td>
-                              <td className="has-text-right">{toRupiah(it.harga)}</td>
-                              <td className="has-text-right">{toRupiah(it.qty * it.harga)}</td>
+                              <td className="has-text-right">{toRinggit(it.price)}</td>
+                              <td className="has-text-right">{toRinggit(it.qty * it.price)}</td>
                             </tr>
                           ))
                         ) : (
-                          <tr><td colSpan={7} className="has-text-centered">Detail kosong</td></tr>
+                          <tr><td colSpan={7} className="has-text-centered">No details</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -557,14 +557,14 @@ export default function OrdersPage() {
           <footer className="modal-card-foot is-justify-content-space-between">
             <div className="buttons">
               <button className="button is-link" onClick={exportOrdersCSV} disabled={!filtered.length}>Export Orders CSV</button>
-              <button className="button" onClick={printDetail} disabled={!detailItems.length}>Cetak Detail</button>
+              <button className="button" onClick={printDetail} disabled={!detailItems.length}>Print Details</button>
             </div>
             <button className="button" onClick={() => setOpenDetail(false)}>Close</button>
           </footer>
         </div>
       </div>
 
-      {/* Modal Create Order */}
+      {/* Create Order Modal */}
       <div className={`modal ${openCreate ? "is-active" : ""}`}>
         <div className="modal-background" onClick={() => setOpenCreate(false)} />
         <div className="modal-card" style={{ width: "95%", maxWidth: 1200 }}>
@@ -579,7 +579,7 @@ export default function OrdersPage() {
                 <label className="label">Member</label>
                 <div className={`select is-fullwidth ${membersLoading ? "is-loading" : ""}`}>
                   <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
-                    <option value="">-- Pilih Member --</option>
+                    <option value="">-- Select Member --</option>
                     {members.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name_member || "-"}{m.email ? ` · ${m.email}` : ""}{m.code_member ? ` · ${m.code_member}` : ""}
@@ -591,10 +591,10 @@ export default function OrdersPage() {
               </div>
 
               <div className="column is-4">
-                <label className="label">Vendor (opsional untuk filter voucher)</label>
+                <label className="label">Vendor (optional to filter vouchers)</label>
                 <div className={`select is-fullwidth ${vendorsCreateLoading ? "is-loading" : ""}`}>
                   <select value={vendorPick} onChange={(e) => setVendorPick(e.target.value)}>
-                    <option value="">-- Pilih Vendor --</option>
+                    <option value="">-- Select Vendor --</option>
                     {vendorsCreate.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.name}{v.city ? ` · ${v.city}` : ""}{v.code_vendor ? ` · ${v.code_vendor}` : ""}
@@ -651,17 +651,17 @@ export default function OrdersPage() {
                                 if (v) updateCreateRow(it.id, "price", Number(v.price || 0));
                               }}
                             >
-                              <option value="">-- Pilih Voucher --</option>
+                              <option value="">-- Select Voucher --</option>
                               {state.options.map((v) => (
                                 <option key={v.id} value={v.id}>
-                                  {v.title} · ID {v.id} · Rp{Number(v.price || 0).toLocaleString("id-ID")}
+                                  {v.title} · ID {v.id} · {toRinggit(Number(v.price || 0))}
                                 </option>
                               ))}
                             </select>
                           </div>
                           {state.err && <p className="help is-danger">{state.err}</p>}
                           {selected?.vendor_id && vendorPick && String(selected.vendor_id) !== String(vendorPick) && (
-                            <p className="help is-warning">* Voucher vendor #{selected.vendor_id}, berbeda dengan filter vendor yang dipilih.</p>
+                            <p className="help is-warning">* Voucher vendor #{selected.vendor_id} differs from the selected vendor filter.</p>
                           )}
                         </td>
                         <td className="has-text-right">
@@ -684,10 +684,10 @@ export default function OrdersPage() {
                             onChange={(e) => updateCreateRow(it.id, "price", e.target.value)}
                           />
                         </td>
-                        <td className="has-text-right">{toRupiah(Number(it.qty || 0) * Number(it.price || 0))}</td>
+                        <td className="has-text-right">{toRinggit(Number(it.qty || 0) * Number(it.price || 0))}</td>
                         <td>
                           <div className="buttons are-small">
-                            <button className="button is-danger is-light" onClick={() => removeCreateRow(it.id)}>Hapus</button>
+                            <button className="button is-danger is-light" onClick={() => removeCreateRow(it.id)}>Remove</button>
                           </div>
                         </td>
                       </tr>
@@ -697,10 +697,10 @@ export default function OrdersPage() {
                 <tfoot>
                   <tr>
                     <th colSpan={2}>
-                      <button className="button is-small" onClick={addCreateRow}>+ Tambah Item</button>
+                      <button className="button is-small" onClick={addCreateRow}>+ Add Item</button>
                     </th>
                     <th className="has-text-right">TOTAL</th>
-                    <th className="has-text-right">{toRupiah(createTotal)}</th>
+                    <th className="has-text-right">{toRinggit(createTotal)}</th>
                     <th colSpan={2} />
                   </tr>
                 </tfoot>
@@ -710,7 +710,7 @@ export default function OrdersPage() {
           <footer className="modal-card-foot is-justify-content-flex-end">
             <button className="button" onClick={() => setOpenCreate(false)}>Cancel</button>
             <button className={`button is-primary ${saving ? "is-loading" : ""}`} onClick={submitCreate} disabled={saving || !createItems.length}>
-              Buat Order
+              Create Order
             </button>
           </footer>
         </div>

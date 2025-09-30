@@ -2,10 +2,15 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: "http://localhost:3000",
+   baseURL: "https://backend-mvp-nine.vercel.app",
   headers: { "Content-Type": "application/json" },
   withCredentials: false, // ganti true kalau pakai cookie httpOnly
 });
+
+// const axiosInstance = axios.create({
+//   baseURL: "https://backend-mvp-nine.vercel.app", // <- absolute, not :3000
+//   withCredentials: false,
+// });
 
 axiosInstance.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");

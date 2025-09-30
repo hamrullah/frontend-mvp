@@ -10,8 +10,9 @@ import {
 const normalize = (data) =>
   Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
 
-const toRupiah = (n) =>
-  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 })
+// Format to Malaysian Ringgit (MYR)
+const toRinggit = (n) =>
+  new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR", minimumFractionDigits: 2 })
     .format(Number(n || 0));
 
 const parseYMD = (s) => {
@@ -25,7 +26,7 @@ const parseYMD = (s) => {
 };
 
 const statusText = (v) => {
-  if (Number(v) === 1) return "selesai";
+  if (Number(v) === 1) return "completed";
   if (Number(v) === 0) return "pending";
   return String(v ?? "");
 };
@@ -38,7 +39,7 @@ export default function SalesAnalyticsPage() {
   const [query, setQuery] = useState("");
   const [me, setMe] = useState(null);
 
-  // Date range default: 30 hari terakhir
+  // Date range default: last 30 days
   const today = new Date();
   const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60000);
   const defaultEnd = localToday.toISOString().slice(0, 10);
@@ -49,7 +50,7 @@ export default function SalesAnalyticsPage() {
   const [startDate, setStartDate] = useState(defaultStartStr);
   const [endDate, setEndDate] = useState(defaultEnd);
 
-  // === Ambil token dari Redux atau localStorage ===
+  // === Get token from Redux or localStorage ===
   const reduxToken = useSelector((s) => s?.auth?.token);
   const storedToken =
     typeof window !== "undefined"
@@ -57,13 +58,13 @@ export default function SalesAnalyticsPage() {
       : null;
   const token = reduxToken || storedToken || null;
 
-  // Header auth konsisten dengan /api/auth/me (Bearer). withCredentials true biar cookie HttpOnly ikut kalau kamu pakai cookie.
+  // Auth header consistent with /api/auth/me (Bearer). withCredentials true if you use HttpOnly cookie.
   const axiosAuthConfig = {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     withCredentials: true,
   };
 
-  // === Cek autentikasi via /api/auth/me ===
+  // === Check auth via /api/auth/me ===
   const checkAuth = async () => {
     setAuthLoading(true);
     setError("");
@@ -73,18 +74,18 @@ export default function SalesAnalyticsPage() {
     } catch (e) {
       console.error(e);
       setMe(null);
-      setError("Unauthorized. Silakan login terlebih dahulu.");
+      setError("Unauthorized. Please sign in first.");
     } finally {
       setAuthLoading(false);
     }
   };
 
-  // === Ambil data order ===
+  // === Fetch orders ===
   const fetchOrders = async () => {
     setLoading(true);
     setError("");
     try {
-      // GANTI URL BERIKUT sesuai endpoint order kamu jika berbeda
+      // CHANGE THE URL below to match your order endpoint if different
       const { data } = await axios.post(
         "http://localhost:3000/api/orders/list",
         { limit: 5000, offset: 0 },
@@ -93,7 +94,7 @@ export default function SalesAnalyticsPage() {
       setOrders(normalize(data));
     } catch (e) {
       console.error(e);
-      setError("Gagal mengambil data order");
+      setError("Failed to fetch orders");
     } finally {
       setLoading(false);
     }
@@ -137,8 +138,8 @@ export default function SalesAnalyticsPage() {
     const map = new Map();
     filtered.forEach((o) => {
       const key = o.tanggal; // assume YYYY-MM-DD
-      const cur = map.get(key) || { date: key, omzet: 0, count: 0 };
-      cur.omzet += Number(o.total_harga || 0);
+      const cur = map.get(key) || { date: key, revenue: 0, count: 0 };
+      cur.revenue += Number(o.total_harga || 0);
       cur.count += 1;
       map.set(key, cur);
     });
@@ -149,12 +150,12 @@ export default function SalesAnalyticsPage() {
     const map = new Map();
     filtered.forEach((o) => {
       const key = o.name || "—";
-      const cur = map.get(key) || { customer: key, omzet: 0, count: 0 };
-      cur.omzet += Number(o.total_harga || 0);
+      const cur = map.get(key) || { customer: key, revenue: 0, count: 0 };
+      cur.revenue += Number(o.total_harga || 0);
       cur.count += 1;
       map.set(key, cur);
     });
-    const arr = Array.from(map.values()).sort((a, b) => b.omzet - a.omzet);
+    const arr = Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
     return arr.slice(0, 10);
   }, [filtered]);
 
@@ -170,8 +171,8 @@ export default function SalesAnalyticsPage() {
   const totals = useMemo(
     () =>
       filtered.reduce(
-        (acc, r) => ({ omzet: acc.omzet + Number(r.total_harga || 0), count: acc.count + 1 }),
-        { omzet: 0, count: 0 }
+        (acc, r) => ({ revenue: acc.revenue + Number(r.total_harga || 0), count: acc.count + 1 }),
+        { revenue: 0, count: 0 }
       ),
     [filtered]
   );
@@ -205,10 +206,10 @@ export default function SalesAnalyticsPage() {
   const exportOrdersCSV = () => {
     if (!filtered.length) return;
     const cols = [
-      { label: "Kode Transaksi", key: "code_trx" },
-      { label: "Tanggal", key: "tanggal" },
+      { label: "Transaction Code", key: "code_trx" },
+      { label: "Date", key: "tanggal" },
       { label: "Customer", key: "name" },
-      { label: "Total Harga", key: "total_harga" },
+      { label: "Total Amount", key: "total_harga" },
       { label: "Status", value: (r) => statusText(r.status) },
     ];
     downloadCSV(`orders_${Date.now()}.csv`, filtered, cols);
@@ -217,11 +218,19 @@ export default function SalesAnalyticsPage() {
   const exportDailyCSV = () => {
     if (!dailySeries.length) return;
     const cols = [
-      { label: "Tanggal", key: "date" },
+      { label: "Date", key: "date" },
       { label: "Order Count", key: "count" },
-      { label: "Omzet", key: "omzet" },
+      { label: "Revenue", key: "revenue" },
     ];
     downloadCSV(`daily_${Date.now()}.csv`, dailySeries, cols);
+  };
+
+  // Helpers for compact number ticks (k/m)
+  const compactTick = (v) => {
+    const n = Number(v || 0);
+    if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`;
+    if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
+    return String(n);
   };
 
   // ====== UI ======
@@ -232,8 +241,8 @@ export default function SalesAnalyticsPage() {
         <nav className="level">
           <div className="level-left">
             <div>
-              <h1 className="title">Grafik Penjualan</h1>
-              <p className="subtitle is-6">Analitik order berdasarkan periode</p>
+              <h1 className="title">Sales Analytics</h1>
+              <p className="subtitle is-6">Order analytics by period</p>
             </div>
           </div>
           <div className="level-right">
@@ -242,7 +251,7 @@ export default function SalesAnalyticsPage() {
                 <input
                   className="input"
                   type="text"
-                  placeholder="Cari (kode/customer/angka)..."
+                  placeholder="Search (code/customer/number)..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
@@ -278,7 +287,7 @@ export default function SalesAnalyticsPage() {
             <div className="column is-6">
               <article className="message is-info is-light">
                 <div className="message-body">
-                  Menampilkan <strong>{filtered.length}</strong> order. Total omzet: <strong>{toRupiah(totals.omzet)}</strong>
+                  Showing <strong>{filtered.length}</strong> orders. Total revenue: <strong>{toRinggit(totals.revenue)}</strong>
                 </div>
               </article>
             </div>
@@ -287,17 +296,17 @@ export default function SalesAnalyticsPage() {
 
         {/* Alerts / Loader */}
         {error && <div className="notification is-danger is-light">{error}</div>}
-        {loading || authLoading ? (
+        {(loading || authLoading) ? (
           <progress className="progress is-small is-primary" max="100">Loading…</progress>
         ) : null}
 
         {/* Charts */}
         <div className="columns is-multiline">
-          {/* Line: Omzet per Hari */}
+          {/* Line: Revenue per Day */}
           <div className="column is-12">
             <div className="card">
               <header className="card-header">
-                <p className="card-header-title">Omzet per Hari</p>
+                <p className="card-header-title">Revenue per Day</p>
               </header>
               <div className="card-content" style={{ height: 320 }}>
                 {dailySeries.length ? (
@@ -308,28 +317,28 @@ export default function SalesAnalyticsPage() {
                         dataKey="date"
                         tickFormatter={(d) => {
                           const dt = parseYMD(d);
-                          return dt ? dt.toLocaleDateString("id-ID", { day: "2-digit", month: "short" }) : d;
+                          return dt ? dt.toLocaleDateString("en-MY", { day: "2-digit", month: "short" }) : d;
                         }}
                       />
-                      <YAxis tickFormatter={(v) => (v >= 1000000 ? `${v / 1000000}jt` : v >= 1000 ? `${v / 1000}k` : v)} />
-                      <Tooltip formatter={(value, name) => [name === "omzet" ? toRupiah(value) : value, name]} />
+                      <YAxis tickFormatter={compactTick} />
+                      <Tooltip formatter={(value, name) => [name === "revenue" ? toRinggit(value) : value, name === "revenue" ? "Revenue" : "Order Count"]} />
                       <Legend />
-                      <Line type="monotone" dataKey="omzet" name="Omzet" dot={false} strokeWidth={2} />
-                      <Line type="monotone" dataKey="count" name="Jumlah Order" dot={false} strokeWidth={2} />
+                      <Line type="monotone" dataKey="revenue" name="Revenue" dot={false} strokeWidth={2} />
+                      <Line type="monotone" dataKey="count" name="Order Count" dot={false} strokeWidth={2} />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
-                  <p className="has-text-grey">Tidak ada data pada rentang tanggal ini.</p>
+                  <p className="has-text-grey">No data for this date range.</p>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Bar: Top Customer */}
+          {/* Bar: Top Customers */}
           <div className="column is-12">
             <div className="card">
               <header className="card-header">
-                <p className="card-header-title">Top Customer (by Omzet)</p>
+                <p className="card-header-title">Top Customers (by Revenue)</p>
               </header>
               <div className="card-content" style={{ height: 360 }}>
                 {customerSeries.length ? (
@@ -337,24 +346,24 @@ export default function SalesAnalyticsPage() {
                     <BarChart data={customerSeries} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="customer" interval={0} angle={-15} textAnchor="end" height={70} />
-                      <YAxis tickFormatter={(v) => (v >= 1000000 ? `${v / 1000000}jt` : v >= 1000 ? `${v / 1000}k` : v)} />
-                      <Tooltip formatter={(value) => toRupiah(value)} />
+                      <YAxis tickFormatter={compactTick} />
+                      <Tooltip formatter={(value) => toRinggit(value)} />
                       <Legend />
-                      <Bar dataKey="omzet" name="Omzet" />
+                      <Bar dataKey="revenue" name="Revenue" />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <p className="has-text-grey">Belum ada data customer pada rentang ini.</p>
+                  <p className="has-text-grey">No customer data in this range.</p>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Pie: Status Order */}
+          {/* Pie: Order Status */}
           <div className="column is-6">
             <div className="card">
               <header className="card-header">
-                <p className="card-header-title">Distribusi Status</p>
+                <p className="card-header-title">Status Distribution</p>
               </header>
               <div className="card-content" style={{ height: 320 }}>
                 {statusSeries.length ? (
@@ -370,41 +379,41 @@ export default function SalesAnalyticsPage() {
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <p className="has-text-grey">Tidak ada data status.</p>
+                  <p className="has-text-grey">No status data.</p>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Table ringkas per hari */}
+          {/* Daily summary table */}
           <div className="column is-6">
             <div className="card">
               <header className="card-header">
-                <p className="card-header-title">Ringkasan Harian</p>
+                <p className="card-header-title">Daily Summary</p>
               </header>
               <div className="card-content">
                 <div className="table-container">
                   <table className="table is-fullwidth is-striped is-hoverable is-narrow">
                     <thead>
                       <tr>
-                        <th>Tanggal</th>
-                        <th className="has-text-right">Order</th>
-                        <th className="has-text-right">Omzet</th>
+                        <th>Date</th>
+                        <th className="has-text-right">Orders</th>
+                        <th className="has-text-right">Revenue</th>
                       </tr>
                     </thead>
                     <tbody>
                       {dailySeries.length ? (
                         dailySeries.map((r) => (
                           <tr key={r.date}>
-                            <td>{new Date(r.date).toLocaleDateString("id-ID")}</td>
+                            <td>{new Date(r.date).toLocaleDateString("en-MY")}</td>
                             <td className="has-text-right">{r.count}</td>
-                            <td className="has-text-right">{toRupiah(r.omzet)}</td>
+                            <td className="has-text-right">{toRinggit(r.revenue)}</td>
                           </tr>
                         ))
                       ) : (
                         <tr>
                           <td colSpan={3} className="has-text-centered has-text-grey">
-                            Tidak ada data
+                            No data
                           </td>
                         </tr>
                       )}
@@ -417,7 +426,7 @@ export default function SalesAnalyticsPage() {
                             {dailySeries.reduce((a, b) => a + b.count, 0)}
                           </th>
                           <th className="has-text-right">
-                            {toRupiah(dailySeries.reduce((a, b) => a + b.omzet, 0))}
+                            {toRinggit(dailySeries.reduce((a, b) => a + b.revenue, 0))}
                           </th>
                         </tr>
                       </tfoot>
@@ -429,9 +438,9 @@ export default function SalesAnalyticsPage() {
           </div>
         </div>
 
-        {/* Footer kecil */}
+        {/* Footer */}
         <p className="has-text-grey is-size-7" style={{ marginTop: 12 }}>
-          Sumber data: <code>POST /api/orders/list</code> (client-side filter by date)
+          Data source: <code>POST /api/orders/list</code> (client-side date filter)
         </p>
       </div>
     </section>

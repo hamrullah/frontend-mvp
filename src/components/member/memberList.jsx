@@ -20,7 +20,7 @@ const fmtDate = (iso) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? iso
-    : d.toLocaleString("id-ID", { year: "numeric", month: "short", day: "2-digit" });
+    : d.toLocaleString("en-MY", { year: "numeric", month: "short", day: "2-digit" });
 };
 const statusText = (s) => (Number(s) === 1 ? "Active" : "Suspended");
 const statusColor = (s) => (Number(s) === 1 ? "active" : "suspended");
@@ -88,7 +88,7 @@ export default function AffiliateList() {
       setTotal(Number(data?.pagination?.total ?? data?.total ?? list.length));
     } catch (e) {
       console.error(e);
-      setError(e?.response?.data?.error || "Gagal mengambil data member");
+      setError(e?.response?.data?.error || "Failed to fetch members");
     } finally {
       setLoading(false);
     }
@@ -113,12 +113,12 @@ export default function AffiliateList() {
 
   // ---------- CREATE MEMBER ----------
   const validateAdd = () => {
-    if (!form.name_member.trim()) return "Nama wajib diisi";
-    if (!form.email.trim()) return "Email wajib diisi";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return "Format email tidak valid";
-    if (!form.referral_code.trim()) return "Referral code wajib diisi";
+    if (!form.name_member.trim()) return "Name is required";
+    if (!form.email.trim()) return "Email is required";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return "Invalid email format";
+    if (!form.referral_code.trim()) return "Referral code is required";
     const com = Number(form.commission);
-    if (!Number.isFinite(com) || com < 0) return "Commission harus angka ≥ 0";
+    if (!Number.isFinite(com) || com < 0) return "Commission must be a number ≥ 0";
     return "";
   };
 
@@ -169,7 +169,7 @@ export default function AffiliateList() {
         headers: { ...authHeader, "Content-Type": "application/json" },
       });
 
-      setAddSuccess(data?.message || "Member berhasil dibuat.");
+      setAddSuccess(data?.message || "Member created successfully.");
       await fetchMembers();
       setTimeout(() => {
         setAddOpen(false);
@@ -177,7 +177,7 @@ export default function AffiliateList() {
       }, 600);
     } catch (e) {
       console.error(e);
-      setAddError(e?.response?.data?.error || "Gagal membuat member");
+      setAddError(e?.response?.data?.error || "Failed to create member");
     } finally {
       setSaving(false);
     }
@@ -391,7 +391,7 @@ export default function AffiliateList() {
                 ) : (
                   <tr>
                     <td colSpan={8} className="has-text-centered">
-                      <p className="has-text-grey">Tidak ada data</p>
+                      <p className="has-text-grey">No data</p>
                     </td>
                   </tr>
                 )}
@@ -456,7 +456,7 @@ export default function AffiliateList() {
                       <strong>Email:</strong> {detail.email || "-"}
                     </p>
                     <p>
-                      <strong>Code Member:</strong> {detail.code_member || "-"}
+                      <strong>Member Code:</strong> {detail.code_member || "-"}
                     </p>
                     <p>
                       <strong>Affiliate:</strong>{" "}
@@ -465,22 +465,22 @@ export default function AffiliateList() {
                         : "-"}
                     </p>
                     <p>
-                      <strong>Alamat:</strong> {detail.address || "-"}
+                      <strong>Address:</strong> {detail.address || "-"}
                     </p>
                     <p>
-                      <strong>Kota/Prov:</strong>{" "}
+                      <strong>City/Province:</strong>{" "}
                       {(detail.city || "-")}
                       {detail.city && detail.province ? ", " : " "}
                       {detail.province || "-"}
                     </p>
                     <p>
-                      <strong>Kode Pos:</strong> {detail.postal_code || "-"}
+                      <strong>Postal Code:</strong> {detail.postal_code || "-"}
                     </p>
                     <p>
                       <strong>Status:</strong> {statusText(detail.status)}
                     </p>
                     <p className="is-size-7 has-text-grey mt-2">
-                      Dibuat: {fmtDate(detail.created_at)} · Update: {fmtDate(detail.updated_at)}
+                      Created: {fmtDate(detail.created_at)} · Updated: {fmtDate(detail.updated_at)}
                     </p>
                     <p className="is-size-7 has-text-grey">Orders: {detail?._count?.orders ?? 0}</p>
                   </div>
@@ -519,7 +519,7 @@ export default function AffiliateList() {
                         className="input"
                         value={form.name_member}
                         onChange={(e) => setForm((p) => ({ ...p, name_member: e.target.value }))}
-                        placeholder="Budi Santoso"
+                        placeholder="John Doe"
                       />
                     </div>
                   </div>
@@ -533,7 +533,7 @@ export default function AffiliateList() {
                         type="email"
                         value={form.email}
                         onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                        placeholder="budi@example.com"
+                        placeholder="john@example.com"
                       />
                     </div>
                   </div>
@@ -547,7 +547,7 @@ export default function AffiliateList() {
                     className="input"
                     value={form.address}
                     onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
-                    placeholder="Jl. Melati"
+                    placeholder="Street address"
                   />
                 </div>
               </div>
@@ -561,7 +561,7 @@ export default function AffiliateList() {
                         className="input"
                         value={form.city}
                         onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
-                        placeholder="Bekasi"
+                        placeholder="City"
                       />
                     </div>
                   </div>
@@ -574,7 +574,7 @@ export default function AffiliateList() {
                         className="input"
                         value={form.province}
                         onChange={(e) => setForm((p) => ({ ...p, province: e.target.value }))}
-                        placeholder="Jawa Barat"
+                        placeholder="Province/State"
                       />
                     </div>
                   </div>
@@ -603,7 +603,7 @@ export default function AffiliateList() {
                         className="input"
                         value={form.twitter}
                         onChange={(e) => setForm((p) => ({ ...p, twitter: e.target.value }))}
-                        placeholder="@akun_twitter"
+                        placeholder="Twitter URL or @handle"
                       />
                     </div>
                   </div>
@@ -616,7 +616,7 @@ export default function AffiliateList() {
                         className="input"
                         value={form.instagram}
                         onChange={(e) => setForm((p) => ({ ...p, instagram: e.target.value }))}
-                        placeholder="@akun.ig"
+                        placeholder="Instagram URL or @handle"
                       />
                     </div>
                   </div>
@@ -629,7 +629,7 @@ export default function AffiliateList() {
                         className="input"
                         value={form.tiktok}
                         onChange={(e) => setForm((p) => ({ ...p, tiktok: e.target.value }))}
-                        placeholder="@akun_tiktok"
+                        placeholder="TikTok URL or @handle"
                       />
                     </div>
                   </div>
@@ -669,8 +669,8 @@ export default function AffiliateList() {
               </div>
 
               <p className="is-size-7 has-text-grey">
-                Member baru akan ditautkan ke affiliate sesuai <em>referral code</em>, dan 1 baris
-                komisi akan dibuat dengan nilai <code>commission</code>.
+                The new member will be linked to the affiliate based on the <em>referral code</em>, and a commission
+                record will be created using the provided <code>commission</code> value.
               </p>
             </section>
 
@@ -691,16 +691,15 @@ export default function AffiliateList() {
 
 const css = `
 .vendor-page { padding-top: 3; }
-/* hilangkan padding horizontal bawaan Bulma di halaman ini saja */
+/* remove Bulma's horizontal padding on this page only */
 .vendor-page.section { padding-left: 0; padding-right: 0; }
 
-/* pastikan container benar-benar full-width */
+/* ensure the container is truly full-width */
 .vendor-page .container.is-fluid { max-width: none; width: 100%; }
 
-/* opsional: rapatkan kartu utama ke tepi */
+/* optionally keep the main card flush with the edges */
 .vendor-page .vp-shell.card { margin-left: 0; margin-right: 0; }
 .vendor-page .soft-card { border: 1px solid #eceff4; border-radius: 14px; box-shadow: 0 4px 20px rgba(20,20,43,.06); }
-
 
 .affiliate-page .soft-card {
   border: 1px solid #eceff4;

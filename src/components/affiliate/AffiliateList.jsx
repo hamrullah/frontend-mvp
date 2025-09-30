@@ -19,7 +19,7 @@ const fmtDate = (iso) => {
   if (!iso) return "-";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("id-ID", { year: "numeric", month: "short", day: "2-digit" });
+  return d.toLocaleString("en-MY", { year: "numeric", month: "short", day: "2-digit" });
 };
 const statusText = (s) => (Number(s) === 1 ? "Active" : "Suspended");
 const statusColor = (s) => (Number(s) === 1 ? "active" : "suspended");
@@ -85,7 +85,7 @@ export default function AffiliateList() {
       setTotal(Number(data?.pagination?.total ?? data?.total ?? list.length));
     } catch (e) {
       console.error(e);
-      setError(e?.response?.data?.error || "Gagal mengambil data affiliate");
+      setError(e?.response?.data?.error || "Failed to fetch affiliates");
     } finally {
       setLoading(false);
     }
@@ -110,9 +110,9 @@ export default function AffiliateList() {
 
   // ---------- ADD ----------
   const validateAdd = () => {
-    if (!form.name_affiliate.trim()) return "Nama wajib diisi";
-    if (!form.email.trim()) return "Email wajib diisi";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return "Format email tidak valid";
+    if (!form.name_affiliate.trim()) return "Name is required";
+    if (!form.email.trim()) return "Email is required";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return "Invalid email format";
     return "";
   };
 
@@ -160,18 +160,18 @@ export default function AffiliateList() {
       });
 
       setAddSuccess(
-        data?.password_note || "Affiliate berhasil dibuat. Default password: 12345 (harap diganti)."
+        data?.password_note || "Affiliate created successfully. Default password: 12345 (please change it)."
       );
 
       await fetchAffiliates();
-      // tutup modal setelah jeda singkat biar user lihat pesan sukses
+      // Close the modal after a short delay so the success message is visible
       setTimeout(() => {
         setAddOpen(false);
         resetAdd();
       }, 600);
     } catch (e) {
       console.error(e);
-      setAddError(e?.response?.data?.error || "Gagal membuat affiliate");
+      setAddError(e?.response?.data?.error || "Failed to create affiliate");
     } finally {
       setSaving(false);
     }
@@ -381,7 +381,7 @@ export default function AffiliateList() {
                 ) : (
                   <tr>
                     <td colSpan={8} className="has-text-centered">
-                      <p className="has-text-grey">Tidak ada data</p>
+                      <p className="has-text-grey">No data</p>
                     </td>
                   </tr>
                 )}
@@ -476,7 +476,7 @@ export default function AffiliateList() {
                     className="input"
                     value={form.address}
                     onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
-                    placeholder="Jl. Mawar No. 1"
+                    placeholder="Street address"
                   />
                 </div>
               </div>
@@ -490,7 +490,7 @@ export default function AffiliateList() {
                         className="input"
                         value={form.city}
                         onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
-                        placeholder="Jakarta"
+                        placeholder="City"
                       />
                     </div>
                   </div>
@@ -503,7 +503,7 @@ export default function AffiliateList() {
                         className="input"
                         value={form.province}
                         onChange={(e) => setForm((p) => ({ ...p, province: e.target.value }))}
-                        placeholder="DKI Jakarta"
+                        placeholder="Province/State"
                       />
                     </div>
                   </div>
@@ -532,7 +532,7 @@ export default function AffiliateList() {
                         className="input"
                         value={form.twitter}
                         onChange={(e) => setForm((p) => ({ ...p, twitter: e.target.value }))}
-                        placeholder="@akun_twitter"
+                        placeholder="Twitter URL or @handle"
                       />
                     </div>
                   </div>
@@ -545,7 +545,7 @@ export default function AffiliateList() {
                         className="input"
                         value={form.instagram}
                         onChange={(e) => setForm((p) => ({ ...p, instagram: e.target.value }))}
-                        placeholder="@akun.ig"
+                        placeholder="Instagram URL or @handle"
                       />
                     </div>
                   </div>
@@ -558,7 +558,7 @@ export default function AffiliateList() {
                         className="input"
                         value={form.tiktok}
                         onChange={(e) => setForm((p) => ({ ...p, tiktok: e.target.value }))}
-                        placeholder="@akun_tiktok"
+                        placeholder="TikTok URL or @handle"
                       />
                     </div>
                   </div>
@@ -566,8 +566,8 @@ export default function AffiliateList() {
               </div>
 
               <p className="is-size-7 has-text-grey">
-                Akun affiliate dibuat dengan password default <code>12345</code>. Minta mereka untuk
-                mengganti password setelah login.
+                The affiliate account is created with a default password <code>12345</code>. Please ask them to change
+                the password after logging in.
               </p>
             </section>
 
@@ -601,14 +601,14 @@ export default function AffiliateList() {
                   <div className="column is-9">
                     <h2 className="title is-5 mb-2">{detail.name_affiliate || "-"}</h2>
                     <p><strong>Email:</strong> {detail.email || "-"}</p>
-                    <p><strong>Code Affiliate:</strong> {detail.code_affiliate || "-"}</p>
+                    <p><strong>Affiliate Code:</strong> {detail.code_affiliate || "-"}</p>
                     <p><strong>Referral Code:</strong> {detail.referral_code || "-"}</p>
-                    <p><strong>Alamat:</strong> {detail.address || "-"}</p>
-                    <p><strong>Kota/Prov:</strong> {(detail.city || "-")}{detail.city && detail.province ? ", " : " "}{detail.province || "-"}</p>
-                    <p><strong>Kode Pos:</strong> {detail.postal_code || "-"}</p>
+                    <p><strong>Address:</strong> {detail.address || "-"}</p>
+                    <p><strong>City/Province:</strong> {(detail.city || "-")}{detail.city && detail.province ? ", " : " "}{detail.province || "-"}</p>
+                    <p><strong>Postal Code:</strong> {detail.postal_code || "-"}</p>
                     <p><strong>Status:</strong> {statusText(detail.status)}</p>
                     <p className="is-size-7 has-text-grey mt-2">
-                      Dibuat: {fmtDate(detail.created_at)} · Update: {fmtDate(detail.updated_at)}
+                      Created: {fmtDate(detail.created_at)} · Updated: {fmtDate(detail.updated_at)}
                     </p>
                   </div>
                 </div>
@@ -626,13 +626,13 @@ export default function AffiliateList() {
 
 const css = `
 .vendor-page { padding-top: 3; }
-/* hilangkan padding horizontal bawaan Bulma di halaman ini saja */
+/* remove Bulma's horizontal padding on this page only */
 .vendor-page.section { padding-left: 0; padding-right: 0; }
 
-/* pastikan container benar-benar full-width */
+/* ensure the container is truly full-width */
 .vendor-page .container.is-fluid { max-width: none; width: 100%; }
 
-/* opsional: rapatkan kartu utama ke tepi */
+/* optionally keep the main card flush with the edges */
 .vendor-page .vp-shell.card { margin-left: 0; margin-right: 0; }
 .vendor-page .soft-card { border: 1px solid #eceff4; border-radius: 14px; box-shadow: 0 4px 20px rgba(20,20,43,.06); }
 

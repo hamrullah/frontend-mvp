@@ -20,12 +20,12 @@ const fmtDate = (iso) => {
   if (!iso) return "-";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("id-ID", { year: "numeric", month: "short", day: "2-digit" });
+  return d.toLocaleString("en-MY", { year: "numeric", month: "short", day: "2-digit" });
 };
 const statusText = (s) => (Number(s) === 1 ? "Active" : "Suspended");
 const statusColor = (s) => (Number(s) === 1 ? "active" : "suspended");
 
-// (opsional) daftar provinsi demo
+// (optional) sample provinces list
 const PROVINCES = [
   "DKI Jakarta", "Jawa Barat", "Banten", "Jawa Tengah", "DI Yogyakarta",
   "Jawa Timur", "Bali", "Sumatera Utara", "Sumatera Barat", "Riau",
@@ -93,7 +93,7 @@ export default function VendorList() {
       setTotal(Number(data?.pagination?.total ?? list.length));
     } catch (e) {
       console.error(e);
-      setError(e?.response?.data?.error || "Gagal mengambil data vendor");
+      setError(e?.response?.data?.error || "Failed to fetch vendors");
     } finally {
       setLoading(false);
     }
@@ -118,9 +118,9 @@ export default function VendorList() {
 
   // ---------- ADD ----------
   const validateAdd = () => {
-    if (!form.name.trim()) return "Nama vendor wajib diisi";
-    if (!form.email.trim()) return "Email wajib diisi";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return "Format email tidak valid";
+    if (!form.name.trim()) return "Vendor name is required";
+    if (!form.email.trim()) return "Email is required";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return "Invalid email format";
     return "";
   };
 
@@ -147,11 +147,11 @@ export default function VendorList() {
     const f = e.target.files?.[0];
     if (!f) return;
     if (!/^image\/(png|jpe?g)$/i.test(f.type)) {
-      setAddError("Hanya JPG/JPEG/PNG yang diperbolehkan");
+      setAddError("Only JPG/JPEG/PNG files are allowed");
       return;
     }
     if (f.size > 1024 * 1024) {
-      setAddError("Maksimal ukuran foto 1MB");
+      setAddError("Maximum photo size is 1 MB");
       return;
     }
     setAddError("");
@@ -187,7 +187,7 @@ export default function VendorList() {
         twitter: form.twitter || null,
         instagram: form.instagram || null,
         tiktok: form.tiktok || null,
-        // image: (await fileToDataUrl(photo)), // <-- aktifkan jika backend menerima base64
+        // image: (await fileToDataUrl(photo)), // <-- enable if backend accepts base64
       };
 
       const { data } = await axios.post(`${API_BASE}/vendor/add-vendor`, payload, {
@@ -195,7 +195,8 @@ export default function VendorList() {
       });
 
       setAddSuccess(
-        data?.password_note || "Vendor berhasil dibuat. Password default: 12345 (harap ubah setelah login)."
+        data?.password_note ||
+          "Vendor created successfully. Default password: 12345 (please change after first login)."
       );
 
       await fetchVendors();
@@ -205,7 +206,7 @@ export default function VendorList() {
       }, 600);
     } catch (e) {
       console.error(e);
-      setAddError(e?.response?.data?.error || "Gagal membuat vendor");
+      setAddError(e?.response?.data?.error || "Failed to create vendor");
     } finally {
       setSaving(false);
     }
@@ -341,7 +342,7 @@ export default function VendorList() {
                     <td className="muted">-</td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={8} className="has-text-centered"><p className="has-text-grey">Tidak ada data</p></td></tr>
+                  <tr><td colSpan={8} className="has-text-centered"><p className="has-text-grey">No data</p></td></tr>
                 )}
               </tbody>
             </table>
@@ -396,7 +397,7 @@ export default function VendorList() {
                       <span className="icon"><IoTrashOutline /></span>
                     </button>
                   )}
-                  <p className="help mt-1">We only support .JPG, .JPEG, or .PNG file. 1 MB max.</p>
+                  <p className="help mt-1">We only support .JPG, .JPEG, or .PNG files. 1 MB max.</p>
                 </div>
               </div>
 
@@ -453,7 +454,7 @@ export default function VendorList() {
                       value={form.province}
                       onChange={(e) => setForm((p) => ({ ...p, province: e.target.value }))}
                     >
-                      <option value="">Your Name</option>
+                      <option value="">Province</option>
                       {PROVINCES.map((p) => (
                         <option key={p} value={p}>{p}</option>
                       ))}
@@ -463,7 +464,7 @@ export default function VendorList() {
                 <div className="column">
                   <label className="label addv-label">Postal Code</label>
                   <div className="select is-fullwidth addv-select">
-                    {/* screenshot menampilkan select; kita tetap izinkan input bebas dengan opsi preset */}
+                    {/* screenshot shows a select; we still allow free input by offering presets here */}
                     <select
                       value={form.postal_code}
                       onChange={(e) => setForm((p) => ({ ...p, postal_code: e.target.value }))}
@@ -510,7 +511,7 @@ export default function VendorList() {
               </div>
 
               <p className="is-size-7 has-text-grey">
-                Akun vendor dibuat dengan password default <code>12345</code>. Minta vendor untuk mengganti password setelah login.
+                The vendor account is created with the default password <code>12345</code>. Ask the vendor to change the password after logging in.
               </p>
             </section>
 
@@ -526,7 +527,7 @@ export default function VendorList() {
         </div>
       </div>
 
-      {/* DETAIL VENDOR MODAL */}
+      {/* VENDOR DETAIL MODAL */}
       <div className={`modal ${detailOpen ? "is-active" : ""}`}>
         <div className="modal-background" onClick={() => setDetailOpen(false)} />
         <div className="modal-card" style={{ maxWidth: 720 }}>
@@ -542,12 +543,12 @@ export default function VendorList() {
                   <div className="column is-9">
                     <h2 className="title is-5 mb-2">{detail.name}</h2>
                     <p><strong>Email:</strong> {detail.email || "-"}</p>
-                    <p><strong>Kode Vendor:</strong> {detail.code_vendor || "-"}</p>
-                    <p><strong>Alamat:</strong> {detail.address || "-"}</p>
-                    <p><strong>Kota/Prov:</strong> {(detail.city || "-")}{detail.city && detail.province ? ", " : " "}{detail.province || "-"}</p>
-                    <p><strong>Kode Pos:</strong> {detail.postal_code || "-"}</p>
+                    <p><strong>Vendor Code:</strong> {detail.code_vendor || "-"}</p>
+                    <p><strong>Address:</strong> {detail.address || "-"}</p>
+                    <p><strong>City/Province:</strong> {(detail.city || "-")}{detail.city && detail.province ? ", " : " "}{detail.province || "-"}</p>
+                    <p><strong>Postal Code:</strong> {detail.postal_code || "-"}</p>
                     <p><strong>Status:</strong> {statusText(detail.status)}</p>
-                    <p className="is-size-7 has-text-grey mt-2">Dibuat: {fmtDate(detail.created_at)} · Update: {fmtDate(detail.updated_at)}</p>
+                    <p className="is-size-7 has-text-grey mt-2">Created: {fmtDate(detail.created_at)} · Updated: {fmtDate(detail.updated_at)}</p>
                   </div>
                 </div>
               </>
@@ -565,13 +566,13 @@ export default function VendorList() {
 /* ---------- Styles (inline) ---------- */
 const css = `
 .vendor-page { padding-top: 3; }
-/* hilangkan padding horizontal bawaan Bulma di halaman ini saja */
+/* remove Bulma's horizontal padding on this page only */
 .vendor-page.section { padding-left: 0; padding-right: 0; }
 
-/* pastikan container benar-benar full-width */
+/* ensure the container is truly full-width */
 .vendor-page .container.is-fluid { max-width: none; width: 100%; }
 
-/* opsional: rapatkan kartu utama ke tepi */
+/* optionally keep the main card flush with the edges */
 .vendor-page .vp-shell.card { margin-left: 0; margin-right: 0; }
 .vendor-page .soft-card { border: 1px solid #eceff4; border-radius: 14px; box-shadow: 0 4px 20px rgba(20,20,43,.06); }
 .toolbar-row { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
