@@ -1,5 +1,6 @@
 // src/pages/VendorList.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSelector } from "react-redux";
 import axios from "axios";
 import {
   IoSearch,
@@ -26,11 +27,14 @@ const statusText = (s) => (Number(s) === 1 ? "Active" : "Suspended");
 const statusColor = (s) => (Number(s) === 1 ? "active" : "suspended");
 
 // (optional) sample provinces list
-const PROVINCES = [
-  "Johor", "MALAKA", "N.SEMBILAN", "KEDAH", "PERLIS", "PULAU PINANG",
-];
+const PROVINCES = ["Johor", "MALAKA", "N.SEMBILAN", "KEDAH", "PERLIS", "PULAU PINANG"];
 
 export default function VendorList() {
+  // auth
+  const { user } = useSelector((s) => s.auth);
+  const role = (user?.role || user?.role_id)?.toString().toUpperCase();
+  const isAdmin = role === "ADMIN";
+
   // LIST state
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +68,25 @@ export default function VendorList() {
     twitter: "",
     instagram: "",
     tiktok: "",
+  });
+
+  // EDIT vendor state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editSuccess, setEditSuccess] = useState("");
+  const [editForm, setEditForm] = useState({
+    id: null,
+    name: "",
+    email: "",
+    address: "",
+    city: "",
+    province: "",
+    postal_code: "",
+    twitter: "",
+    instagram: "",
+    tiktok: "",
+    status: 1, // only for admin UI
   });
 
   // photo picker state (preview only)
@@ -113,6 +136,80 @@ export default function VendorList() {
   const openDetail = (row) => {
     setDetail(row);
     setDetailOpen(true);
+  };
+
+  // ---------- EDIT ----------
+  const openEdit = (row) => {
+    setEditError("");
+    setEditSuccess("");
+    setEditForm({
+      id: row.id,
+      name: row.name || "",
+      email: row.email || "",
+      address: row.address || "",
+      city: row.city || "",
+      province: row.province || "",
+      postal_code: row.postal_code || "",
+      twitter: row.twitter || "",
+      instagram: row.instagram || "",
+      tiktok: row.tiktok || "",
+      status: Number(row.status ?? 1),
+    });
+    setEditOpen(true);
+  };
+
+  const validateEdit = () => {
+    if (!editForm.id) return "Invalid vendor id";
+    if (!editForm.name.trim()) return "Vendor name is required";
+    if (!editForm.email.trim()) return "Email is required";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email.trim())) return "Invalid email format";
+    return "";
+  };
+
+  const onUpdateVendor = async (e) => {
+    e?.preventDefault?.();
+    const msg = validateEdit();
+    if (msg) {
+      setEditError(msg);
+      return;
+    }
+    setEditSaving(true);
+    setEditError("");
+    setEditSuccess("");
+
+    try {
+      // Build payload; server will ignore status if non-admin
+      const payload = {
+        name: editForm.name.trim(),
+        email: editForm.email.trim(),
+        address: editForm.address || "",
+        city: editForm.city || "",
+        province: editForm.province || "",
+        postal_code: editForm.postal_code || "",
+        twitter: editForm.twitter || null,
+        instagram: editForm.instagram || null,
+        tiktok: editForm.tiktok || null,
+        ...(isAdmin ? { status: Number(editForm.status) } : {}), // only admins can send status
+      };
+
+      const { data } = await axios.patch(`${API_BASE}/vendor/${editForm.id}`, payload, {
+        headers: { ...authHeader, "Content-Type": "application/json" },
+      });
+
+      setEditSuccess(data?.message || "Vendor updated");
+      await fetchVendors();
+      setTimeout(() => {
+        setEditOpen(false);
+      }, 600);
+    } catch (e) {
+      console.error(e);
+      const serverMsg =
+        e?.response?.data?.error ||
+        (e?.response?.status === 403 ? "Forbidden: you can only edit your own vendor." : null);
+      setEditError(serverMsg || "Failed to update vendor");
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   // ---------- ADD ----------
@@ -233,7 +330,9 @@ export default function VendorList() {
           <div className="toolbar mt-4">
             <div className="toolbar-row">
               <div className="pill">
-                <button className="button is-light button-pill">
+                <button className="button is-light button-pill" onClick={() => {
+                  setQ(""); setStatus("ALL"); setSortBy("created_at"); setSortDir("desc"); setLimit(10); setOffset(0);
+                }}>
                   <span>All</span>
                   <span className="icon is-small"><IoChevronDownOutline /></span>
                 </button>
@@ -319,8 +418,7 @@ export default function VendorList() {
                     <td>
                       <div className="action-buttons">
                         <button className="icon-ghost" title="View" onClick={() => openDetail(v)}><IoEyeOutline /></button>
-                        <button className="icon-ghost" title="Edit" onClick={() => openDetail(v)}><IoPencilOutline /></button>
-                        <button className="icon-ghost danger" title="Delete" onClick={() => alert("Confirm delete?")}><IoTrashOutline /></button>
+                        <button className="icon-ghost" title="Edit" onClick={() => openEdit(v)}><IoPencilOutline /></button>
                       </div>
                     </td>
                     <td className="vendor-cell">
@@ -526,6 +624,151 @@ export default function VendorList() {
         </div>
       </div>
 
+      {/* EDIT VENDOR MODAL */}
+      <div className={`modal ${editOpen ? "is-active" : ""}`}>
+        <div className="modal-background" onClick={() => setEditOpen(false)} />
+        <div className="modal-card addv-modal">
+          <header className="modal-card-head addv-head">
+            <p className="modal-card-title addv-title">Edit Vendor</p>
+            <button className="delete" aria-label="close" onClick={() => setEditOpen(false)} />
+          </header>
+
+          <form onSubmit={onUpdateVendor}>
+            <section className="modal-card-body addv-body">
+              {editError && <div className="notification is-danger is-light">{editError}</div>}
+              {editSuccess && <div className="notification is-success is-light">{editSuccess}</div>}
+
+              <h3 className="addv-section">Personal Information</h3>
+              <div className="columns">
+                <div className="column">
+                  <label className="label addv-label">Vendor Name</label>
+                  <input
+                    className="input addv-input"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
+                    placeholder="Vendor Name"
+                  />
+                </div>
+                <div className="column">
+                  <label className="label addv-label">Email</label>
+                  <input
+                    className="input addv-input"
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))}
+                    placeholder="vendor@example.com"
+                  />
+                </div>
+              </div>
+
+              <h3 className="addv-section">Address</h3>
+              <div className="field">
+                <label className="label addv-label">Address</label>
+                <input
+                  className="input addv-input"
+                  value={editForm.address}
+                  onChange={(e) => setEditForm((p) => ({ ...p, address: e.target.value }))}
+                  placeholder="Street Address"
+                />
+              </div>
+
+              <div className="columns">
+                <div className="column">
+                  <label className="label addv-label">City</label>
+                  <input
+                    className="input addv-input"
+                    value={editForm.city}
+                    onChange={(e) => setEditForm((p) => ({ ...p, city: e.target.value }))}
+                    placeholder="City"
+                  />
+                </div>
+                <div className="column">
+                  <label className="label addv-label">Province</label>
+                  <div className="select is-fullwidth addv-select">
+                    <select
+                      value={editForm.province}
+                      onChange={(e) => setEditForm((p) => ({ ...p, province: e.target.value }))}
+                    >
+                      <option value="">Province</option>
+                      {PROVINCES.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="column">
+                  <label className="label addv-label">Postal Code</label>
+                  <input
+                    className="input addv-input"
+                    value={editForm.postal_code}
+                    onChange={(e) => setEditForm((p) => ({ ...p, postal_code: e.target.value }))}
+                    placeholder="Postal Code"
+                  />
+                </div>
+              </div>
+
+              <h3 className="addv-section">Social Media (Optional)</h3>
+              <div className="columns">
+                <div className="column">
+                  <label className="label addv-label">Twitter</label>
+                  <input
+                    className="input addv-input"
+                    value={editForm.twitter}
+                    onChange={(e) => setEditForm((p) => ({ ...p, twitter: e.target.value }))}
+                    placeholder="Twitter URL"
+                  />
+                </div>
+                <div className="column">
+                  <label className="label addv-label">Instagram</label>
+                  <input
+                    className="input addv-input"
+                    value={editForm.instagram}
+                    onChange={(e) => setEditForm((p) => ({ ...p, instagram: e.target.value }))}
+                    placeholder="Instagram URL"
+                  />
+                </div>
+                <div className="column">
+                  <label className="label addv-label">TikTok</label>
+                  <input
+                    className="input addv-input"
+                    value={editForm.tiktok}
+                    onChange={(e) => setEditForm((p) => ({ ...p, tiktok: e.target.value }))}
+                    placeholder="TikTok URL"
+                  />
+                </div>
+              </div>
+
+              {isAdmin && (
+                <>
+                  <h3 className="addv-section">Admin Controls</h3>
+                  <div className="field">
+                    <label className="label addv-label">Status</label>
+                    <div className="select is-fullwidth addv-select">
+                      <select
+                        value={editForm.status}
+                        onChange={(e) => setEditForm((p) => ({ ...p, status: Number(e.target.value) }))}
+                      >
+                        <option value={1}>Active</option>
+                        <option value={0}>Suspended</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+            </section>
+
+            <footer className="modal-card-foot addv-foot">
+              <button type="button" className="button addv-btn-ghost" onClick={() => setEditOpen(false)} disabled={editSaving}>
+                Cancel
+              </button>
+              <button type="submit" className={`button addv-btn-primary ${editSaving ? "is-loading" : ""}`} disabled={editSaving}>
+                Update
+              </button>
+            </footer>
+          </form>
+        </div>
+      </div>
+
       {/* VENDOR DETAIL MODAL */}
       <div className={`modal ${detailOpen ? "is-active" : ""}`}>
         <div className="modal-background" onClick={() => setDetailOpen(false)} />
@@ -599,7 +842,7 @@ const css = `
 .page-dot.is-current { background:#6d28d9; border-color:#6d28d9; color:#fff; }
 .pagination-ctrl[disabled], .page-dot[disabled] { opacity:.5; cursor:not-allowed; }
 
-/* ---- Add Vendor Modal styles ---- */
+/* ---- Add / Edit Vendor Modal styles ---- */
 .addv-modal { max-width: 760px; border-radius: 24px; overflow: hidden; }
 .addv-head { border-bottom: none; padding: 18px 22px 0 22px; }
 .addv-title { font-weight: 700; font-size: 1.15rem; }

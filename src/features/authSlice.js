@@ -17,7 +17,7 @@ export const ENDPOINTS = {
 
 // ---- Role helpers ----
 const ROLE_BY_ID = {
-  5: "MEMBER",
+  4: "MEMBER",
   5: "VENDOR",
   6: "AFFILIATE",
   4: "ADMIN",

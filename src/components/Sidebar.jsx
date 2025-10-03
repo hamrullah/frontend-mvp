@@ -14,7 +14,13 @@ import {
   IoSettingsOutline,
   IoHelpCircleOutline,
   IoPersonCircle,
-  IoLogOut,
+  IoLogOut,         // My Store
+  IoBusinessOutline,     // Vendor
+  IoQrCodeOutline,       // Redemption Tools
+   IoPersonCircleOutline,   // My Account
+  IoTrendingUpOutline,     // Performance Preview
+  IoDocumentTextOutline,   // Report
+  IoCashOutline, 
 } from "react-icons/io5";
 
 import "./Sidebar.css";
@@ -63,27 +69,33 @@ const Sidebar = () => {
       // Everyone (including guest)
       { key: "dashboard", to: "/dashboard", label: "Dashboard", icon: IoHome, roles: ["ADMIN", "VENDOR", "MEMBER", "AFFILIATE", "GUEST"] },
 
+      { key: "my-store", to: "/my-store", label: "My Store", icon: IoStorefront, roles: ["VENDOR"] },
+      { key: "projects", to: "/projects", label: "Voucher Management", icon: IoPricetag, roles: ["ADMIN", "VENDOR"] },
+      { key: "redemption", to: "/redemption", label: "Redemption Tools", icon: IoQrCodeOutline, roles: ["ADMIN", "VENDOR"] },
+     // { key: "report", to: "/report", label: "Report & Payout", icon: IoDocumentTextOutline, roles: ["ADMIN", "VENDOR"] },
       // Vendor module
-      { key: "vendors", to: "/vendors", label: "Vendor", icon: IoStorefront, roles: ["ADMIN", "VENDOR"] },
+      { key: "vendors", to: "/vendors", label: "Vendor", icon: IoStorefront, roles: ["ADMIN"] },
 
       // Member module
       { key: "member", to: "/member", label: "Member", icon: IoStorefront, roles: ["ADMIN", "MEMBER"] },
 
       // Affiliate module
-      { key: "affiliate", to: "/affiliate", label: "Affiliate", icon: IoStorefront, roles: ["ADMIN", "AFFILIATE"] },
-      { key: "affiliate-commission", to: "/affiliate-commision", label: "Affiliate Commission", icon: IoStorefront, roles: ["ADMIN", "AFFILIATE"] },
-
+      { key: "affiliate", to: "/affiliate", label: "Affiliate", icon: IoStorefront, roles: ["ADMIN"] },
+     { key: "my-affiliate",          to: "/my-affiliate",        label: "My Account",          icon: IoPersonCircleOutline,  roles: ["AFFILIATE"] },
+  { key: "affiliate-commission",  to: "/affiliate-commision-new", label: "Performance Preview", icon: IoTrendingUpOutline,     roles: ["AFFILIATE"] },
+  { key: "affiliate-report",      to: "/affiliate-report",    label: "Report",               icon: IoDocumentTextOutline,   roles: ["AFFILIATE"] },
+  { key: "affiliate-payout",      to: "/affiliate-out",       label: "Payout",               icon: IoCashOutline,           roles: ["AFFILIATE","ADMIN"] },
       // Products / vouchers
-      { key: "projects", to: "/projects", label: "Product / Voucher", icon: IoPricetag, roles: ["ADMIN", "VENDOR"] },
+      
 
       // Orders
-      { key: "transactions", to: "/transactions", label: "Orders", icon: IoCart, roles: ["ADMIN", "VENDOR", "MEMBER"] },
+      { key: "transactions", to: "/transactions", label: "Orders", icon: IoCart, roles: ["ADMIN", "MEMBER"] },
     ],
     []
   );
 
   const visibleMenus = useMemo(() => {
-    if (role === "ADMIN") return ALL_MENUS;
+    //if (role === "ADMIN") return ALL_MENUS;
     return ALL_MENUS.filter((m) => m.roles.includes(role));
   }, [role, ALL_MENUS]);
 

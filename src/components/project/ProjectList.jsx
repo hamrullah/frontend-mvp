@@ -73,6 +73,7 @@ export default function VoucherList() {
     startAtLocal: "",
     endAtLocal: "",
     totalInventory: 0,
+    monthlyLimit: "", // NEW: per-user monthly usage limit (optional; default 0 = unlimited)
     vendorId: "",
     categoryId: "",
   });
@@ -218,6 +219,11 @@ export default function VoucherList() {
     if (end <= start) return "End date must be after start date";
     const inv = Number(form.totalInventory);
     if (!Number.isInteger(inv) || inv < 0) return "Inventory must be an integer ≥ 0";
+
+    // NEW: monthly limit (optional, default 0). Validate only if provided.
+    if (form.monthlyLimit !== "" && (!Number.isInteger(Number(form.monthlyLimit)) || Number(form.monthlyLimit) < 0)) {
+      return "Monthly usage limit must be an integer ≥ 0";
+    }
     return "";
   };
 
@@ -244,6 +250,7 @@ export default function VoucherList() {
       startAtLocal: "",
       endAtLocal: "",
       totalInventory: 0,
+      monthlyLimit: "",
       vendorId: "",
       categoryId: "",
     });
@@ -267,6 +274,14 @@ export default function VoucherList() {
       fd.append("price", Number(form.price).toFixed(2));
       fd.append("startAt", toIso(form.startAtLocal));
       fd.append("endAt", toIso(form.endAtLocal));
+
+      // NEW: send monthly limit (default 0 = unlimited)
+      const monthly = Number(form.monthlyLimit);
+      fd.append(
+        "monthly_usage_limit",
+        Number.isInteger(monthly) && monthly >= 0 ? String(monthly) : "0"
+      );
+
       images.forEach((file) => fd.append("images", file));
 
       await axios.post(`${API_BASE}/voucher/add-voucher`, fd, { headers: { ...authHeader } });
@@ -459,10 +474,11 @@ export default function VoucherList() {
                   <th>Voucher Code</th>
                   <th>Title</th>
                   <th>Category</th>
-                  <th className="has-text-right">Discount Value</th>
+                  <th className="has-text-right">Price</th> {/* FIXED: show price, not discount */}
                   <th>Start Date</th>
                   <th>End Date</th>
-                  <th className="has-text-right">Usage Limit</th>
+                  <th className="has-text-right">Inventory</th>
+                  <th className="has-text-right">Monthly Limit</th> {/* NEW */}
                   <th>Status</th>
                   <th>Created Date</th>
                 </tr>
@@ -492,12 +508,13 @@ export default function VoucherList() {
                       <td className="muted">
                         {categoryById.get(v.category_voucher_id) || v.category_name || "-"}
                       </td>
-                      <td className="has-text-right">
-                        {v.discount != null ? `${v.discount}%` : "—"}
-                      </td>
+                      <td className="has-text-right">{money(v.price)}</td>
                       <td>{fmtDate(v.start)}</td>
                       <td>{fmtDate(v.end)}</td>
                       <td className="has-text-right">{Number.isFinite(v.inventory) ? v.inventory : "-"}</td>
+                      <td className="has-text-right">
+                        {Number.isFinite(v.monthly_usage_limit) ? v.monthly_usage_limit : (v.monthly_usage_limit ?? "-")}
+                      </td>
                       <td>
                         <span className={statusChipClass(v.status)}>{STATUS_LABEL(v.status)}</span>
                       </td>
@@ -506,7 +523,7 @@ export default function VoucherList() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={11} className="has-text-centered has-text-grey">No data</td>
+                    <td colSpan={12} className="has-text-centered has-text-grey">No data</td>
                   </tr>
                 )}
               </tbody>
@@ -634,6 +651,25 @@ export default function VoucherList() {
               </div>
             </div>
 
+            {/* NEW: monthly usage limit */}
+            <div className="columns">
+              <div className="column is-4">
+                <div className="field">
+                  <label className="label">Monthly Usage Limit (per user)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0 (unlimited)"
+                    value={form.monthlyLimit}
+                    onChange={(e) => setForm((p) => ({ ...p, monthlyLimit: e.target.value }))}
+                  />
+                  <p className="help">Set 0 for unlimited per month.</p>
+                </div>
+              </div>
+            </div>
+
             <div className="columns">
               <div className="column">
                 <div className="field">
@@ -662,13 +698,26 @@ export default function VoucherList() {
             {/* Images */}
             <div className="field">
               <label className="label">Images</label>
-              <input className="input" type="file" multiple accept="image/*" onChange={onPickFiles} />
+              <input className="input" type="file" multiple accept="image/*" onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                const max = 5 * 1024 * 1024;
+                const valids = files.filter((f) => f.type.startsWith("image/") && f.size <= max);
+                setImages(valids);
+                setPreviews(valids.map((f) => URL.createObjectURL(f)));
+              }} />
               {previews.length > 0 && (
                 <div className="grid-imgs">
                   {previews.map((url, i) => (
                     <div key={url} className="img-card">
                       <img src={url} alt={`img-${i}`} />
-                      <button className="button is-small is-danger is-light" onClick={() => removeImageAt(i)}>
+                      <button
+                        className="button is-small is-danger is-light"
+                        onClick={() => {
+                          URL.revokeObjectURL(previews[i]);
+                          setImages((a) => a.filter((_, idx) => idx !== i));
+                          setPreviews((a) => a.filter((_, idx) => idx !== i));
+                        }}
+                      >
                         Remove
                       </button>
                     </div>
@@ -764,16 +813,17 @@ export default function VoucherList() {
                 <h2 className="title is-5 mb-3">{detail.title}</h2>
                 <div className="columns is-multiline">
                   <div className="column is-6">
-                    <p><strong>Code:</strong> {detail.code || "-"}</p>
+                    <p><strong>Code:</strong> {detail.code || detail.code_voucher || "-"}</p>
                     <p><strong>Price:</strong> {money(detail.price)}</p>
                     <p><strong>Inventory:</strong> {detail.inventory ?? 0}</p>
                     <p><strong>Status:</strong> {STATUS_LABEL(detail.status)}</p>
                   </div>
                   <div className="column is-6">
-                    <p><strong>Start:</strong> {fmtDate(detail.start)}</p>
-                    <p><strong>End:</strong> {fmtDate(detail.end)}</p>
+                    <p><strong>Start:</strong> {fmtDate(detail.start || detail.voucher_start)}</p>
+                    <p><strong>End:</strong> {fmtDate(detail.end || detail.voucher_end)}</p>
                     <p><strong>Vendor ID:</strong> {detail.vendor_id ?? "-"}</p>
                     <p><strong>Category:</strong> {categoryById.get(detail.category_voucher_id) || "-"}</p>
+                    <p><strong>Monthly Limit:</strong> {detail.monthly_usage_limit ?? "-"}</p> {/* NEW */}
                   </div>
                 </div>
 
@@ -806,7 +856,7 @@ export default function VoucherList() {
   );
 }
 
-// ---------- Styles (lightweight, resembles the design) ----------
+// ---------- Styles ----------
 const styles = `
 .voucher-page { padding-top: 0; }
 /* remove horizontal padding on this page only */
